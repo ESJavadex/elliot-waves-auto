@@ -15,13 +15,13 @@
             --text-primary: #e4e6eb;
             --text-secondary: #b0b3b8;
             --text-muted: #8a8d91;
-            --accent-primary: #4d84ff;
-            --accent-secondary: #3a6bc5;
-            --accent-tertiary: #2e4e8f;
-            --success: #4ade80;
-            --warning: #facc15;
-            --danger: #f87171;
-            --border-color: #3e4756;
+            --accent-primary: #4d84ff; /* Brighter Blue */
+            --accent-secondary: #3a6bc5; /* Medium Blue */
+            --accent-tertiary: #2e4e8f; /* Darker Blue */
+            --success: #4ade80; /* Green */
+            --warning: #facc15; /* Yellow */
+            --danger: #f87171; /* Red */
+            --border-color: #3e4756; /* Darker Grey Border */
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.25);
             --shadow-md: 0 4px 8px rgba(0,0,0,0.2), 0 3px 6px rgba(0,0,0,0.25);
             --shadow-lg: 0 10px 20px rgba(0,0,0,0.25), 0 6px 10px rgba(0,0,0,0.25);
@@ -38,167 +38,171 @@
         body { font-family: var(--font-family); background-color: var(--bg-primary); color: var(--text-primary); line-height: 1.6; margin: 0; padding: 0; min-height: 100vh; }
         .container { background-color: var(--bg-secondary); padding: 40px; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); max-width: 1500px; margin: 30px auto; border: 1px solid var(--border-color); }
 
-        /* Titles */
+        /* Headings */
         h1, h2, h3 { text-align: center; color: var(--accent-primary); margin-bottom: 30px; font-weight: 600; letter-spacing: -0.02em; }
         h1 { font-size: 2.4em; margin-top: 0; background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-tertiary) 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; position: relative; display: inline-block; left: 50%; transform: translateX(-50%); padding-bottom: 15px; }
         h1::after { content: ''; position: absolute; bottom: 0; left: 10%; right: 10%; height: 3px; background: linear-gradient(90deg, transparent, var(--accent-primary), transparent); border-radius: 3px; }
         h2 { font-size: 1.8em; margin-top: 50px; position: relative; padding-bottom: 15px; }
         h2::after { content: ''; position: absolute; bottom: 0; left: 30%; right: 30%; height: 2px; background: linear-gradient(90deg, transparent, var(--accent-secondary), transparent); border-radius: 2px; }
         h3 { font-size: 1.4em; color: var(--accent-secondary); margin-bottom: 25px; }
+        /* Section Sub-Title (e.g., for Backtest/Risk) */
+        h4 { font-size: 1.15em; color: var(--text-primary); margin-bottom: 20px; text-align: center; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); width: 100%; font-weight: 500; }
 
         /* Form General */
-        form { display: flex; flex-direction: column; gap: 25px; /* Reduced gap between main box and submit */ margin-bottom: 50px; }
+        form { display: flex; flex-direction: column; gap: 0; /* No gap between sections, handled inside */ margin-bottom: 50px; padding: 0; /* Remove padding from form itself */ background-color: transparent; border: none; box-shadow: none; position: relative; }
+        form::before { content: none; /* Remove top gradient line from form */ }
 
-        /* THE MAIN CONDENSED SETTINGS BOX */
-        .main-settings-box {
-            display: grid;
-            /* Adjust columns based on screen size */
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px 25px; /* Row gap, Column gap */
-            padding: 30px;
-            background-color: var(--bg-tertiary); /* Background for the main box */
+        /* --- Condensed Form Section (The *Single* Main Box) --- */
+        .condensed-form-section {
+            display: flex;
+            flex-direction: column;
+            gap: 30px; /* Gap between main grid, backtest, risk, submit groups */
+            padding: 30px; /* Padding for the entire box */
+            background-color: var(--bg-tertiary); /* Background for the box */
             border-radius: var(--radius-md);
             border: 1px solid var(--border-color);
             box-shadow: var(--shadow-md);
-            position: relative; /* For pseudo-element */
-            overflow: hidden;
+            position: relative; /* For pseudo elements if needed */
+             overflow: hidden;
         }
-        .main-settings-box::before { /* Top accent line */
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; height: 4px;
-            background: linear-gradient(90deg, var(--accent-tertiary), var(--accent-primary), var(--accent-tertiary));
-            z-index: 1;
-        }
+        /* Optional Top Accent Line for the Condensed Box */
+         .condensed-form-section::before {
+             content: '';
+             position: absolute;
+             top: 0; left: 0; right: 0;
+             height: 4px;
+             background: linear-gradient(90deg, var(--accent-tertiary), var(--accent-primary), var(--accent-tertiary));
+             z-index: 1;
+         }
 
-        /* Grid Item Styling */
-        .grid-item {
-            min-width: 0; /* Prevent grid blowout */
-            display: flex;
-            flex-direction: column;
-            gap: 8px; /* Space between label and input */
-        }
-        /* Span full width */
-        .grid-item-full { grid-column: 1 / -1; }
-
-        /* Input Group within Grid */
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            width: 100%; /* Take full width of grid cell */
-        }
-
-        /* Labels within Grid */
-        label {
-            margin-bottom: 4px; /* Reduced space */
-            font-weight: 500;
-            color: var(--text-primary);
-            font-size: 0.9em; /* Smaller labels */
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            justify-content: flex-start; /* Align left */
-        }
-
-        /* Inputs within Grid */
-        input[type="text"], input[type="date"], select, input[type="number"] {
-            padding: 10px 12px; /* Reduced padding */
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-sm);
-            background-color: var(--bg-input);
-            color: var(--text-primary);
-            font-size: 0.95em; /* Slightly smaller font */
+        /* Grid for Main Settings (Mode, Ticker/List, Dates, Interval) */
+        .main-settings-grid {
+            display: grid;
+            /* Adjust columns based on desired layout - 3 columns seems feasible */
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px 25px; /* Row gap, Column gap */
             width: 100%;
-            transition: var(--transition-fast);
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
-            outline: none;
         }
-        input:focus, select:focus {
-            border-color: var(--accent-primary);
-            box-shadow: 0 0 0 3px rgba(77, 132, 255, 0.25), inset 0 1px 2px rgba(0,0,0,0.1);
-        }
-        input::placeholder { color: var(--text-muted); }
-        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.8) brightness(1.1); cursor: pointer; transition: var(--transition-fast); }
-        input[type="date"]::-webkit-calendar-picker-indicator:hover { filter: invert(1) brightness(1); }
-        select { cursor: pointer; appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill="%23e4e6eb" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>'); background-repeat: no-repeat; background-position: right 10px center; background-size: 1.1em; padding-right: 35px; }
 
-        /* Helper Text */
-        small {
-            font-size: 0.8em; /* Smaller helper text */
-            color: var(--text-muted);
-            display: block;
-            margin-top: 3px;
+        /* Grid Item Placement (Example - adjust as needed) */
+        .mode-select-group {
+            /* grid-column: span 3; Or place in a specific column */
+             grid-column: 1 / -1; /* Span full width */
+             max-width: 400px; /* Limit width */
+             justify-self: center; /* Center within the span */
+        }
+        #single-ticker-group {
+             grid-column: span 2; /* Example: Ticker takes 2 columns */
+        }
+        #multi-stock-inputs {
+             grid-column: span 2; /* Example: Multi-stock takes 2 columns */
+             display: flex; /* Controlled by JS */
+             flex-direction: column;
+             gap: 15px;
+        }
+        .quick-presets-container { /* Wrap presets if needed */
+             grid-column: span 1; /* Example: Presets take 1 column */
+             display: flex;
+             flex-direction: column;
+             gap: 5px;
+             align-items: flex-start;
+             margin-top: 18px; /* Align roughly with Ticker label */
+        }
+         .quick-presets { display: flex; flex-wrap: wrap; gap: 10px; }
+         .quick-presets-label { font-size: 0.9em; color: var(--text-secondary); margin-bottom: 5px; width: 100%; text-align: left; }
+
+        /* Input Group Styling within the Grid */
+        .main-settings-grid .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px; /* Smaller gap within input group */
+        }
+        .main-settings-grid label {
+            font-size: 0.9em;
+            margin-bottom: 0; /* Remove bottom margin */
+            justify-content: flex-start;
+        }
+        .main-settings-grid small {
+            font-size: 0.8em;
+            margin-top: 2px; /* Tighter helper text */
             text-align: left;
         }
 
-        /* Section Subheadings within Grid Box */
-        .section-subheading {
-            grid-column: 1 / -1; /* Span all columns */
-            text-align: center;
-            font-size: 1.1em;
-            color: var(--text-secondary);
-            font-weight: 500;
-            margin-top: 15px; /* Space above subheading */
-            margin-bottom: 0px; /* Reduced space below */
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        /* Ticker/List specifics */
-        #multi-stock-inputs { display: flex; flex-direction: column; gap: 10px; width: 100%; }
-        .quick-presets { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; width: 100%; margin-top: 5px; }
-        .quick-presets-label { display: none; /* Hide label, assumed context */ }
-        .preset-btn { padding: 6px 12px; font-size: 0.85em; } /* Smaller buttons */
-
-        /* Toggle Switch Styling (used for checkboxes) */
-        .form-toggle { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; /* Allow centering */ }
-        .toggle-switch { position: relative; display: inline-flex; align-items: center; cursor: pointer; user-select: none; vertical-align: middle; }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-        .toggle-slider { position: relative; display: inline-block; width: 40px; height: 22px; background-color: var(--bg-input); border-radius: 22px; transition: var(--transition-normal); box-shadow: inset 0 1px 3px rgba(0,0,0,0.2); border: 1px solid var(--border-color); }
-        .toggle-slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: var(--text-secondary); border-radius: 50%; transition: var(--transition-normal); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-        input:checked + .toggle-slider { background-color: var(--accent-primary); border-color: var(--accent-secondary); }
-        input:checked + .toggle-slider:before { transform: translateX(18px); background-color: white; }
-        .toggle-label { color: var(--text-secondary); font-size: 0.9em; font-weight: 500; cursor: pointer; transition: color var(--transition-fast); text-align: right; /* Align label to right of switch */ flex-grow: 1; }
-        .form-toggle .toggle-label { text-align: center; flex-grow: 0;} /* Center labels for toggles used alone */
-        .toggle-label:hover { color: var(--text-primary); }
-        /* Adjust toggle position for specific items */
-        .backtest-toggle-item, .plot-toggle-item { justify-content: center; }
-
-
-        /* Backtest Info Box */
-        .backtest-info { text-align: center; font-size: 0.85em; color: var(--warning); margin-top: 10px; background-color: rgba(250, 204, 21, 0.08); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(250, 204, 21, 0.2); line-height: 1.4; width: 100%; grid-column: 1 / -1; /* Span columns */ }
-
-
-        /* Submit Section */
-        .submit-section {
+        /* Backtest & Risk Groups (Inside the main section) */
+        .backtest-group, .risk-group {
+            border-top: 1px solid var(--border-color);
+            padding-top: 25px;
+            width: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 20px; /* Space between plot toggle and button */
-            margin-top: 10px; /* Space above submit area */
+            gap: 20px;
         }
-        input[type="submit"] { padding: 12px 35px; font-size: 1.0em; } /* Slightly smaller button */
+         .backtest-group h4, .risk-group h4 {
+             margin-bottom: 15px; /* Less margin below title */
+             border-bottom: none; /* Remove duplicate border */
+             padding-bottom: 0;
+             font-size: 1.1em; /* Slightly smaller title */
+         }
+        .backtest-dates, .risk-inputs-row {
+             display: flex;
+             flex-wrap: wrap;
+             gap: 20px;
+             justify-content: center;
+             width: 100%;
+        }
+        .backtest-dates .input-group, .risk-inputs-row .input-group {
+             flex-grow: 1;
+             min-width: 200px;
+             max-width: 300px;
+         }
+         .backtest-info {
+             max-width: 650px; /* Limit info width */
+             margin-top: 15px;
+         }
+         .backtest-group small, .risk-group small {
+             font-size: 0.8em; color: var(--text-muted); display: block;
+             margin-top: 4px; text-align: left;
+         }
 
-        /* Responsiveness */
-        @media (max-width: 900px) {
-            .main-settings-box {
-                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* Adjust minmax */
-                gap: 15px 20px; /* Reduce gap */
-            }
-        }
-        @media (max-width: 600px) {
-            .main-settings-box {
-                grid-template-columns: 1fr; /* Stack into 1 column */
-                gap: 15px;
-            }
-             .section-subheading { margin-top: 20px; }
-             .container { padding: 20px; }
-             form { padding: 20px; }
+        /* Submit Group (Inside the main section) */
+        .submit-group {
+            border-top: 1px solid var(--border-color);
+            padding-top: 25px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
         }
 
+        /* General Input Styling */
+        label { margin-bottom: 8px; font-weight: 500; color: var(--text-primary); font-size: 0.95em; display: flex; align-items: center; gap: 8px; }
+        input[type="text"], input[type="date"], select, input[type="number"] { padding: 12px 15px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background-color: var(--bg-input); color: var(--text-primary); font-size: 1em; width: 100%; transition: var(--transition-fast); box-shadow: inset 0 1px 3px rgba(0,0,0,0.15); outline: none; }
+        input:focus, select:focus { border-color: var(--accent-primary); box-shadow: 0 0 0 3px rgba(77, 132, 255, 0.25), inset 0 1px 3px rgba(0,0,0,0.15); }
+        input::placeholder { color: var(--text-muted); }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.8) brightness(1.1); cursor: pointer; transition: var(--transition-fast); }
+        input[type="date"]::-webkit-calendar-picker-indicator:hover { filter: invert(1) brightness(1); }
+        select { cursor: pointer; appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill="%23e4e6eb" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>'); background-repeat: no-repeat; background-position: right 15px center; background-size: 1.2em; padding-right: 40px; }
+        input[type="submit"] { padding: 14px 40px; background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; transition: var(--transition-normal); font-weight: 600; font-size: 1.05em; width: auto; box-shadow: var(--shadow-md); position: relative; overflow: hidden; text-transform: uppercase; letter-spacing: 0.8px; }
+        input[type="submit"]::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: var(--transition-normal); }
+        input[type="submit"]:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,0.35); }
+        input[type="submit"]:hover::before { left: 100%; }
+        input[type="submit"]:active { transform: translateY(0px); box-shadow: 0 3px 6px rgba(0,0,0,0.2); }
+
+        /* Toggle Switch Styles */
+        .form-toggle { display: flex; align-items: center; justify-content: center; gap: 12px; }
+        .toggle-switch { position: relative; display: inline-flex; align-items: center; cursor: pointer; user-select: none; vertical-align: middle; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+        .toggle-slider { position: relative; display: inline-block; width: 44px; height: 24px; background-color: var(--bg-input); border-radius: 24px; transition: var(--transition-normal); box-shadow: inset 0 1px 3px rgba(0,0,0,0.2); border: 1px solid var(--border-color); }
+        .toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 2px; bottom: 2px; background-color: var(--text-secondary); border-radius: 50%; transition: var(--transition-normal); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        input:checked + .toggle-slider { background-color: var(--accent-primary); border-color: var(--accent-secondary); }
+        input:checked + .toggle-slider:before { transform: translateX(20px); background-color: white; }
+        .toggle-label { color: var(--text-secondary); font-size: 0.95em; font-weight: 500; cursor: pointer; transition: color var(--transition-fast); }
+        .toggle-label:hover { color: var(--text-primary); }
 
         /* --- Results Area Styling --- */
-        /* (Keeping these styles largely the same as before for brevity) */
+        /* (Keeping these styles largely the same as previous full code for brevity) */
         .plot-container { margin-top: 40px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background-color: rgba(0, 0, 0, 0.2); padding: 15px; overflow-x: auto; box-shadow: var(--shadow-md); transition: var(--transition-normal); position: relative; }
         .plot-container::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, var(--accent-primary), transparent); border-radius: 3px 3px 0 0; }
         .plot-container:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
@@ -289,6 +293,7 @@
         .toggle-table-btn:hover { background-color: var(--bg-input); border-color: var(--accent-primary); transform: translateY(-1px); }
         .toggle-table-btn .icon { transition: transform 0.3s ease; font-size: 1.1em; line-height: 1; width: 1em; text-align: center; }
         .toggle-table-btn.collapsed .icon { transform: rotate(-90deg); }
+        .preset-btn { padding: 9px 16px; background-color: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; font-size: 0.88em; transition: var(--transition-fast); box-shadow: var(--shadow-sm); font-weight: 500; }
         .preset-btn:hover { background-color: var(--bg-input); border-color: var(--accent-primary); color: var(--accent-primary); transform: translateY(-2px); box-shadow: var(--shadow-md); }
         .preset-btn:active { transform: translateY(0); box-shadow: var(--shadow-sm); }
         tr.no-trade.hidden { display: none; }
@@ -315,135 +320,304 @@
         <h1>Conceptual Elliott Wave Analysis & Trade Ideas</h1>
 
         <form method="POST">
+            <div class="condensed-form-section">
 
-            <div class="main-settings-box">
-
-                <div class="grid-item grid-item-full"> <div class="input-group mode-select-group" style="margin: 0 auto;"> <label for="analysis_mode">Analysis Mode</label>
+                <div class="main-settings-grid">
+                    <div class="input-group mode-select-group">
+                        <label for="analysis_mode">Analysis Mode</label>
                         <select id="analysis_mode" name="analysis_mode">
                             <option value="single" {% if form_values.analysis_mode != 'multi' %}selected{% endif %}>Single Stock</option>
                             <option value="multi" {% if form_values.analysis_mode == 'multi' %}selected{% endif %}>Multiple Stocks</option>
                         </select>
                     </div>
-                </div>
 
-                <div class="grid-item" id="single-ticker-group">
-                    <div class="input-group">
+                    <div class="input-group" id="single-ticker-group" style="/* grid-column: span 2; */">
                         <label for="ticker">Ticker:</label>
                         <input type="text" id="ticker" name="ticker" value="{{ form_values.ticker | default('^SPX', true) }}">
-                        <small>e.g., AAPL, ^SPX</small>
+                        <small>Enter a single stock ticker (e.g., AAPL, ^SPX).</small>
                     </div>
-                </div>
-                <div class="grid-item grid-item-full" id="multi-stock-inputs"> <div class="input-group">
-                        <label for="stock_list">Stock List (comma separated):</label>
-                        <input type="text" id="stock_list" name="stock_list" value="{{ form_values.stock_list }}" placeholder="MSFT,AAPL,NVDA,SPY">
-                        <small>Enter multiple tickers separated by commas.</small>
-                    </div>
-                    <div class="quick-presets">
-                        <button type="button" class="preset-btn" data-stocks="MSFT,AAPL,NVDA,GOOGL,META,AMZN,TSLA">Tech Giants</button>
-                        <button type="button" class="preset-btn" data-stocks="SPY,QQQ,DIA,IWM,VTI">Major ETFs</button>
-                        <button type="button" class="preset-btn" onclick="alert('Preset too large. Please paste a list manually.');">Large Cap (Manual)</button>
-                        <button type="button" class="preset-btn" data-stocks="">Clear</button>
-                    </div>
-                </div>
 
-                <div class="grid-item">
+                    <div id="multi-stock-inputs" style="/* grid-column: span 2; */">
+                        <div class="input-group">
+                            <label for="stock_list">Stock List (comma separated):</label>
+                            <input type="text" id="stock_list" name="stock_list" value="{{ form_values.stock_list }}" placeholder="MSFT,AAPL,NVDA,SPY">
+                            <small>Enter multiple tickers separated by commas.</small>
+                        </div>
+                         <div class="quick-presets-container"> <span class="quick-presets-label">Quick Presets:</span>
+                            <div class="quick-presets">
+                                <button type="button" class="preset-btn" data-stocks="MSFT,AAPL,NVDA,GOOGL,META,AMZN,TSLA">Tech Giants</button>
+                                <button type="button" class="preset-btn" data-stocks="SPY,QQQ,DIA,IWM,VTI">Major ETFs</button>
+                                <button type="button" class="preset-btn" onclick="alert('Preset too large. Please paste a list manually.');">Large Cap Example (Manual)</button>
+                                <button type="button" class="preset-btn" data-stocks="">Clear</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="input-group">
                         <label for="start_date">Start Date:</label>
                         <input type="date" id="start_date" name="start_date" value="{{ form_values.start_date | default(default_start_date, true) }}" required>
                     </div>
-                 </div>
-                 <div class="grid-item">
                     <div class="input-group">
                         <label for="end_date">End Date (Standard):</label>
                         <input type="date" id="end_date" name="end_date" value="{{ form_values.end_date | default(default_end_date, true) }}">
                         <small>Leave blank for today.</small>
                     </div>
-                 </div>
-                 <div class="grid-item">
-                     <div class="input-group">
+                    <div class="input-group">
                         <label for="interval">Interval:</label>
                         <select id="interval" name="interval" required>
-                             <option value="5m" {% if form_values.interval == '5m' %}selected{% endif %}>5 Minute</option>
-                             <option value="15m" {% if form_values.interval == '15m' %}selected{% endif %}>15 Minute</option>
-                             <option value="30m" {% if form_values.interval == '30m' %}selected{% endif %}>30 Minute</option>
-                             <option value="1h" {% if form_values.interval == '1h' %}selected{% endif %}>Hourly</option>
-                             <option value="1d" {% if form_values.interval == '1d' %}selected{% endif %}>Daily</option>
-                             <option value="5d" {% if form_values.interval == '5d' %}selected{% endif %}>5 Days</option>
-                             <option value="1wk" {% if not form_values.interval or form_values.interval == '1wk' %}selected{% endif %}>Weekly</option>
-                             <option value="1mo" {% if form_values.interval == '1mo' %}selected{% endif %}>Monthly</option>
-                             <option value="3mo" {% if form_values.interval == '3mo' %}selected{% endif %}>3 Months</option>
+                            <option value="5m" {% if form_values.interval == '5m' %}selected{% endif %}>5 Minute (5m)</option>
+                            <option value="15m" {% if form_values.interval == '15m' %}selected{% endif %}>15 Minute (15m)</option>
+                            <option value="30m" {% if form_values.interval == '30m' %}selected{% endif %}>30 Minute (30m)</option>
+                            <option value="1h" {% if form_values.interval == '1h' %}selected{% endif %}>Hourly (1h)</option>
+                            <option value="1d" {% if form_values.interval == '1d' %}selected{% endif %}>Daily (1d)</option>
+                            <option value="5d" {% if form_values.interval == '5d' %}selected{% endif %}>5 Days (5d)</option>
+                            <option value="1wk" {% if not form_values.interval or form_values.interval == '1wk' %}selected{% endif %}>Weekly (1wk)</option>
+                            <option value="1mo" {% if form_values.interval == '1mo' %}selected{% endif %}>Monthly (1mo)</option>
+                            <option value="3mo" {% if form_values.interval == '3mo' %}selected{% endif %}>3 Months (3mo)</option>
                         </select>
                     </div>
-                 </div>
-
-                <div class="section-subheading">Backtest Simulation (Optional)</div>
-
-                <div class="grid-item grid-item-full backtest-toggle-item"> <label class="form-toggle">
-                         <label class="toggle-label" for="run_backtest">Enable Backtest Mode</label>
-                         <span class="toggle-switch">
-                             <input class="form-check-input" type="checkbox" value="true" id="run_backtest" name="run_backtest" {{ 'checked' if form_values.run_backtest == 'true' }}>
-                             <span class="toggle-slider"></span>
-                         </span>
-                     </label>
-                 </div>
-
-                <div class="grid-item">
-                    <div class="input-group">
-                        <label for="analysis_date">Analysis Date (Past End):</label>
-                        <input type="date" class="form-control" id="analysis_date" name="analysis_date" value="{{ form_values.analysis_date or default_analysis_date }}">
-                        <small>Run analysis *as if* this was the end date.</small>
+                </div> <div class="backtest-group">
+                    <h4>Backtest Simulation (Optional)</h4>
+                    <div class="backtest-enable-toggle">
+                        <label class="form-toggle">
+                            <label class="toggle-label" for="run_backtest">Enable Backtest Mode</label>
+                            <span class="toggle-switch">
+                                <input class="form-check-input" type="checkbox" value="true" id="run_backtest" name="run_backtest" {{ 'checked' if form_values.run_backtest == 'true' }}>
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
                     </div>
-                 </div>
-                 <div class="grid-item">
-                    <div class="input-group">
-                        <label for="check_date">Check Date (Future End):</label>
-                        <input type="date" class="form-control" id="check_date" name="check_date" value="{{ form_values.check_date or default_check_date }}">
-                        <small>Show actual data up to this date.</small>
+                    <div class="backtest-dates">
+                        <div class="input-group">
+                            <label for="analysis_date">Analysis Date (Past End Date):</label>
+                            <input type="date" class="form-control" id="analysis_date" name="analysis_date" value="{{ form_values.analysis_date or default_analysis_date }}">
+                            <small>Run analysis *as if* this was the end date.</small>
+                        </div>
+                        <div class="input-group">
+                            <label for="check_date">Check Date (Future End Date):</label>
+                            <input type="date" class="form-control" id="check_date" name="check_date" value="{{ form_values.check_date or default_check_date }}">
+                            <small>Show actual data up to this date.</small>
+                        </div>
                     </div>
-                 </div>
-                  <p class="backtest-info">If 'Enable Backtest Mode' is checked, 'Analysis Date' and 'Check Date' are used. Otherwise, the standard 'End Date' field is used.</p>
+                </div> <div class="risk-group">
+                     <h4>Risk & Position Size (Optional)</h4>
+                     <div class="risk-inputs-row">
+                          <div class="input-group">
+                              <label for="risk_percent">Risk per Trade (% of Account):</label>
+                              <input type="number" id="risk_percent" name="risk_percent" value="{{ form_values.risk_percent | default('1.0', true) }}" step="0.1" min="0.1" max="100" required>
+                              <small>e.g., 1.0 = risk 1%</small>
+                          </div>
+                          <div class="input-group">
+                              <label for="demo_account_size">Demo Account Size:</label>
+                              <input type="number" id="demo_account_size" name="demo_account_size" value="{{ form_values.demo_account_size | default('10000', true) }}" step="100" min="100" required>
+                              <small>e.g., 10000 (no currency symbol)</small>
+                          </div>
+                     </div>
+                </div> <div class="submit-group">
+                    <label class="form-toggle">
+                       <label class="toggle-label" for="show_trade_on_plot">Show Trade Levels on Plot (if trade found)</label>
+                        <span class="toggle-switch">
+                            <input class="form-check-input" type="checkbox" value="true" id="show_trade_on_plot" name="show_trade_on_plot" {{ 'checked' if form_values.show_trade_on_plot == 'true' }}>
+                           <span class="toggle-slider"></span>
+                        </span>
+                    </label>
+                   <input type="submit" value="Run Analysis / Backtest">
+               </div> </div> </form>
 
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
 
-                 <div class="section-subheading">Risk & Position Size (Optional)</div>
-
-                <div class="grid-item">
-                   <div class="input-group">
-                       <label for="risk_percent">Risk per Trade (%):</label>
-                       <input type="number" id="risk_percent" name="risk_percent" value="{{ form_values.risk_percent | default('1.0', true) }}" step="0.1" min="0.1" max="100" required>
-                       <small>e.g., 1.0 = risk 1%</small>
-                   </div>
+        {% if multi_stock_results %}
+            <h2>Multi-Stock Analysis Results</h2>
+            <div class="filter-controls">
+                <div class="table-controls">
+                    <button type="button" id="toggle-table-btn" class="toggle-table-btn">
+                        <span class="icon">▼</span>
+                        <span class="btn-text">Hide Table</span>
+                    </button>
+                    <div class="stocks-count">
+                        <span id="visible-stocks-count">Loading...</span>
+                    </div>
                 </div>
-                <div class="grid-item">
-                   <div class="input-group">
-                       <label for="demo_account_size">Demo Account Size:</label>
-                       <input type="number" id="demo_account_size" name="demo_account_size" value="{{ form_values.demo_account_size | default('10000', true) }}" step="100" min="100" required>
-                       <small>e.g., 10000</small>
-                   </div>
-                </div>
-                <div class="grid-item"></div>
-
-
-            </div> <div class="submit-section">
-                 <label class="form-toggle plot-toggle-item">
-                    <label class="toggle-label" for="show_trade_on_plot">Show Trade Levels on Plot</label>
-                     <span class="toggle-switch">
-                         <input class="form-check-input" type="checkbox" value="true" id="show_trade_on_plot" name="show_trade_on_plot" {{ 'checked' if form_values.show_trade_on_plot == 'true' }}>
+                <label class="form-toggle">
+                    <label class="toggle-label" for="hide-no-entry">Hide Stocks Without Entry</label>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="hide-no-entry" checked>
                         <span class="toggle-slider"></span>
-                     </span>
-                 </label>
-                <input type="submit" value="Run Analysis / Backtest">
+                    </span>
+                </label>
             </div>
-        </form>
+            <div class="multi-stock-results">
+                <table class="stock-results-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable sort-asc" data-sort="ticker">Ticker</th>
+                            <th class="sortable" data-sort="wave">Wave</th>
+                            <th class="sortable" data-sort="signal">Signal</th>
+                            <th class="sortable" data-sort="entry">Entry Price</th>
+                            <th class="sortable" data-sort="sl">Stop Loss</th>
+                            <th class="sortable" data-sort="tp1">TP1</th>
+                            <th class="sortable" data-sort="rrr">R:R</th>
+                            <th class="sortable" data-sort="score">Score</th>
+                            <th class="sortable" data-sort="confidence">Confidence</th>
+                            <th class="sortable" data-sort="status">Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for result in multi_stock_results %}
+                        <tr class="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' %}trade-found{% else %}no-trade{% endif %}"
+                            data-has-entry="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' %}true{% else %}false{% endif %}"
+                            data-ticker="{{ result.ticker }}"
+                            data-wave="{{ result.wave_info.current_wave if result.wave_info else 'N/A' }}"
+                            data-signal="{{ result.trade_recommendation_data.signal if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}"
+                            data-entry="{{ result.trade_recommendation_data.entry_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
+                            data-sl="{{ result.trade_recommendation_data.stop_loss_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
+                            data-tp1="{{ result.trade_recommendation_data.tp1_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
+                            data-rrr="{{ result.trade_recommendation_data.tp1_rrr if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.tp1_rrr is not none else '' }}"
+                            data-score="{{ result.wave_info.score if result.wave_info else '' }}"
+                            data-confidence="{{ result.trade_recommendation_data.confidence_score if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
+                            data-status="{{ result.trade_recommendation_data.status if result.trade_recommendation_data else result.error }}"
+                            data-correction="{{ result.wave_info.correction if result.wave_info else False }}"
+                            data-correction-target="{{ result.wave_info.correction_target if result.wave_info else 'N/A' }}"
+                            data-impulse="{{ result.wave_info.impulse_identified if result.wave_info else False }}">
+                            <td><strong>{{ result.ticker }}</strong></td>
+                            <td class="wave-cell">
+                                <span class="wave-label">{{ result.wave_info.current_wave if result.wave_info else 'N/A' }}</span>
+                                {% if result.wave_info and result.wave_info.correction %}<span class="correction-badge" title="Possible correction forming, target: {{ result.wave_info.correction_target }}">ABC</span>{% endif %}
+                                {% if result.wave_info and result.wave_info.impulse_identified %}<span class="impulse-badge" title="Complete impulse identified">✓</span>{% endif %}
+                            </td>
+                            <td>{{ result.trade_recommendation_data.signal if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
+                            <td>{{ '%.2f'|format(result.trade_recommendation_data.entry_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
+                            <td>{{ '%.2f'|format(result.trade_recommendation_data.stop_loss_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
+                            <td>{{ '%.2f'|format(result.trade_recommendation_data.tp1_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
+                            <td>{{ '%.2f'|format(result.trade_recommendation_data.tp1_rrr) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.tp1_rrr is not none else 'N/A' }}</td>
+                            <td>{{ result.wave_info.score if result.wave_info else 'N/A' }}</td>
+                            <td>{{ result.trade_recommendation_data.confidence_score if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
+                            <td>{{ result.trade_recommendation_data.status if result.trade_recommendation_data else result.error }}</td>
+                            <td>
+                                <form method="POST" class="show-plot-form">
+                                    <input type="hidden" name="analysis_mode" value="single"><input type="hidden" name="ticker" value="{{ result.ticker }}"><input type="hidden" name="start_date" value="{{ form_values.start_date }}"><input type="hidden" name="end_date" value="{{ form_values.end_date }}"><input type="hidden" name="interval" value="{{ form_values.interval }}"><input type="hidden" name="risk_percent" value="{{ form_values.risk_percent }}"><input type="hidden" name="demo_account_size" value="{{ form_values.demo_account_size }}"><input type="hidden" name="show_trade_on_plot" value="true"><input type="hidden" name="from_multi_stock" value="true"><input type="hidden" name="original_stock_list" value="{{ form_values.stock_list }}"><button type="submit" class="show-plot-btn">Plot</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
 
-        {% if error %} <p class="error">{{ error }}</p> {% endif %}
-        {% if multi_stock_results %} {% endif %}
-        {% if plot_html %} {% elif request.method == 'POST' and not error and not multi_stock_results %} <p style="text-align:center; color: #999; margin: 40px 0;">No plot generated...</p> {% endif %}
-        {% if trade_recommendation_data %} {% elif request.method == 'POST' and not error and not multi_stock_results %}{% if analysis_summary_data and not analysis_summary_data.get('error') %} {% endif %}{% endif %}
-        {% if analysis_summary_data and not analysis_summary_data.get('error') %} {% elif request.method == 'POST' and not error and not multi_stock_results %}<p style="text-align:center; color: #999; margin: 40px 0;">Analysis request processed, but no summary data available...</p>{% endif %}
-        <div class="disclaimer"><strong>*** DEMO / EDUCATIONAL USE ONLY - EXTREME WARNING ***</strong><br>This tool attempts conceptual Elliott Wave analysis... Always conduct your own thorough research...</div>
-        <footer><p>Made by <a href="https://github.com/ESJavadex" target="_blank" rel="noopener noreferrer">Esjavadex</a></p></footer>
-        </div> <script>
+        {% if plot_html %}
+            <h2>
+                {% if form_values.run_backtest == 'true' %}
+                    Backtest Result for {{ form_values.ticker }} (Analyzed as of {{ form_values.analysis_date }}, Checked to {{ form_values.check_date }}, {{ form_values.interval }})
+                {% else %}
+                     {% if form_values.analysis_mode == 'single' %}
+                        Analysis Result for {{ form_values.ticker }}
+                     {% else %}
+                         Detailed Plot for {{ form_values.ticker }} (from Multi-Stock Analysis)
+                     {% endif %}
+                     ({{ form_values.start_date }} to {{ form_values.end_date | default('Today', true) }}, {{ form_values.interval }})
+                {% endif %}
+            </h2>
+            <div class="plot-container">{{ plot_html | safe }}</div>
+        {% elif request.method == 'POST' and not error and not multi_stock_results %}
+             <p style="text-align:center; color: #999; margin: 40px 0;">No plot generated. Check parameters or console logs.</p>
+        {% endif %}
+
+        {% if trade_recommendation_data %}
+            <div class="trade-recommendation-section">
+                <h3>Trade Recommendation Idea (Based on Analysis)</h3>
+                {% if trade_recommendation_data.status == 'Trade Found' %}
+                    <div class="trade-grid">
+                        <div class="trade-item signal-{{ trade_recommendation_data.signal | lower }}"><label>Signal:</label><span class="value">{{ trade_recommendation_data.signal }}</span></div>
+                        <div class="trade-item confidence-score"><label>Confidence Score:</label><span class="value">{{ trade_recommendation_data.confidence_score }} / 100</span></div>
+                        <div class="trade-item"><label>Reason:</label><span class="value" style="font-size: 0.9em; color: var(--text-secondary); font-weight: normal; line-height: 1.4;">{{ trade_recommendation_data.reason }}</span></div>
+                        <div class="trade-item"><label>Entry Price:</label><span class="value">{{ "%.4f"|format(trade_recommendation_data.entry_price) }} {{ trade_recommendation_data.currency }}</span></div>
+                        <div class="trade-item signal-{{ 'long' if trade_recommendation_data.signal == 'Short' else 'short' }}"><label>Stop Loss Price:</label><span class="value">{{ "%.4f"|format(trade_recommendation_data.stop_loss_price) }}</span><small>({{ "%.2f"|format(trade_recommendation_data.sl_distance_pct) }}% / {{ "%.4f"|format(trade_recommendation_data.sl_distance_pips) }} points)</small></div>
+                        <div class="trade-item risk-reward"><label>Risk Amount:</label><span class="value">{{ "%.2f"|format(trade_recommendation_data.risk_amount) }} {{ trade_recommendation_data.currency }}</span><small>({{ trade_recommendation_data.risk_percent }}% of {{ "{:,.0f}".format(trade_recommendation_data.account_size) }})</small></div>
+                        <div class="trade-item signal-{{ trade_recommendation_data.signal | lower }}"><label>Take Profit 1:</label>{% if trade_recommendation_data.tp1_price %}<span class="value">{{ "%.4f"|format(trade_recommendation_data.tp1_price) }}</span>{% else %}<span class="value" style="color:var(--text-muted);">N/A</span>{% endif %}</div>
+                        <div class="trade-item risk-reward"><label>TP1 Risk/Reward:</label>{% if trade_recommendation_data.tp1_rrr %}<span class="value">{{ "%.2f"|format(trade_recommendation_data.tp1_rrr) }}:1</span>{% else %}<span class="value" style="color:var(--text-muted);">N/A</span>{% endif %}</div>
+                        <div class="trade-item"><label>Position Size:</label><span class="value">{{ "%.4f"|format(trade_recommendation_data.position_size_units) }} Units/Shares</span><small>(Check contract specs!)</small></div>
+                        <div class="trade-item signal-{{ trade_recommendation_data.signal | lower }}"><label>Take Profit 2:</label>{% if trade_recommendation_data.tp2_price %}<span class="value">{{ "%.4f"|format(trade_recommendation_data.tp2_price) }}</span>{% else %}<span class="value" style="color:var(--text-muted);">N/A</span>{% endif %}</div>
+                        <div class="trade-item risk-reward"><label>TP2 Risk/Reward:</label>{% if trade_recommendation_data.tp2_rrr %}<span class="value">{{ "%.2f"|format(trade_recommendation_data.tp2_rrr) }}:1</span>{% else %}<span class="value" style="color:var(--text-muted);">N/A</span>{% endif %}</div>
+                        <div class="trade-item"></div>
+                    </div>
+                    <p class="trade-notes">{{ trade_recommendation_data.notes }}</p>
+                {% elif trade_recommendation_data.status == 'No Trade' %}
+                    <p class="no-trade">{{ trade_recommendation_data.reason | default('No actionable trade setup identified based on the current analysis.', true) }}</p>
+                {% else %}
+                    <p class="error" style="text-align:left;">Error generating recommendation: {{ trade_recommendation_data.reason | default('An unspecified error occurred.', true) }}</p>
+                {% endif %}
+            </div>
+        {% elif request.method == 'POST' and not error and not multi_stock_results %}
+              {% if analysis_summary_data and not analysis_summary_data.get('error') %}
+                <div class="trade-recommendation-section"><h3>Trade Recommendation Idea</h3><p class="no-trade">Could not generate trade recommendation (Check logs for details).</p></div>
+              {% endif %}
+        {% endif %}
+
+        {% if analysis_summary_data and not analysis_summary_data.get('error') %}
+            <h2>Analysis Summary {% if form_values.run_backtest == 'true' %}(Performed as of {{ form_values.analysis_date }}){% endif %}</h2>
+              {% if analysis_summary_data.warning %}<p class="error" style="background-color: rgba(229, 192, 123, 0.1); border-color: #e5c07b; color: #e5c07b;">Warning: {{ analysis_summary_data.warning }}</p>{% endif %}
+            {% if analysis_summary_data.found_impulse %}
+                <div class="summary-section">
+                    <h3>Overall Status</h3>
+                    <ul class="summary-list">
+                        <li>Identified Impulse Sequence? <span class="value-true">True</span></li><li>Sequence Found: <span class="value">0 - {{ analysis_summary_data.details.last_label }}</span></li><li>Direction: <span class="value">{{ "Upward" if analysis_summary_data.details.is_upward else "Downward" }}</span></li><li>Quality Score: <span class="value">{{ "%.1f"|format(analysis_summary_data.details.score) }}</span> (Higher generally better)</li><li>Number of Points: <span class="value">{{ analysis_summary_data.details.length }}</span> (0 to {{ analysis_summary_data.details.last_label }})</li><li>Last Impulse Point Date: <span class="value">{% if analysis_summary_data.details.last_point is not none and analysis_summary_data.details.last_point.name is not none %}{{ analysis_summary_data.details.last_point.name.strftime('%Y-%m-%d') }}{% else %}N/A{% endif %}</span></li><li>Last Point Overall Date: <span class="value">{% if analysis_summary_data.last_point_overall is not none and analysis_summary_data.last_point_overall.name is not none %}{{ analysis_summary_data.last_point_overall.name.strftime('%Y-%m-%d') }}{% else %}N/A{% endif %}</span> (Label: {{ analysis_summary_data.last_label }})</li>
+                    </ul>
+                </div>
+                {% if analysis_summary_data.details %}
+                    <div class="summary-grid">
+                        <div class="summary-section">
+                            <h3>Rule Compliance (Mandatory)</h3>
+                            {% if analysis_summary_data.details.rules_passed %}<ul class="summary-list checks">{% for rule, passed in analysis_summary_data.details.rules_passed.items() %}<li>{{ rule.replace('_', ' ').title() }}: <span class="value-{{ passed | lower }}">{{ "Passed" if passed else "FAILED" }}</span></li>{% endfor %}</ul>{% else %}<p>No rule compliance data available.</p>{% endif %}
+                        </div>
+                        <div class="summary-section">
+                            <h3>Guideline Check (Common Patterns)</h3>
+                             {% if analysis_summary_data.details.guidelines %}<ul class="summary-list checks">{% for guideline, met in analysis_summary_data.details.guidelines.items() %}{% if not guideline.startswith('Vol_') %}<li>{{ guideline.replace('_', ' ').title() }}: <span class="value-{{ met | lower }}">{{ "Met" if met else "Not Met" }}</span></li>{% endif %}{% endfor %}</ul>{% else %}<p>No guideline data available.</p>{% endif %}
+                        </div>
+                         <div class="summary-section">
+                            <h3>Fibonacci Ratios (Wave Relationships)</h3>
+                            {% if analysis_summary_data.details.fib_ratios %}<ul class="summary-list fibs">{% for name, data in analysis_summary_data.details.fib_ratios.items() %}{% if data is iterable and data|length == 2 and data[0] is not none and data[0] != 'NaN' and data[0] is number %}<li>{{ name.replace('_', ' ').title() }}: <span class="value">{{ data[1] }}</span> <span>(Actual: {{ "%.3f"|format(data[0]) }})</span></li>{% else %}<li>{{ name.replace('_', ' ').title() }}: <span class="value" style="color:var(--text-muted)">N/A</span> <span>(Actual: {{ data[0] | default('N/A') }})</span></li>{% endif %}{% endfor %}</ul>{% else %}<p>No Fibonacci ratio data available.</p>{% endif %}
+                        </div>
+                         <div class="summary-section">
+                            <h3>Volume Analysis (Basic Guidelines)</h3>
+                            {% if analysis_summary_data.details.guidelines or analysis_summary_data.details.volume_details %}
+                                <ul class="summary-list checks">{% set vol_guidelines_exist = false %}{% if analysis_summary_data.details.guidelines %}{% for guideline, met in analysis_summary_data.details.guidelines.items() %}{% if guideline.startswith('Vol_') %}{% set vol_guidelines_exist = true %}<li>{{ guideline.replace('Vol_', '').replace('_', ' ').title() }}: <span class="value-{{ met | lower }}">{{ "Met" if met else "Not Met" }}</span></li>{% endif %}{% endfor %}{% endif %}{% if not vol_guidelines_exist %}<li><span class="value-false" style="font-weight:normal; text-align: left; flex-shrink: 1;">No volume guideline data available or checks skipped.</span></li>{% endif %}</ul>
+                                 {% if analysis_summary_data.details.volume_details %}<details class="volume-details"><summary>Avg. Volume per Wave</summary><ul class="summary-list raw-vol">{% for name, vol in analysis_summary_data.details.volume_details.items() %}{% set vol_display = "{:,.0f}".format(vol) if vol is number else vol %}<li>{{ name.replace('AvgVol_', 'Wave ') }}: <span class="value">{{ vol_display }}</span></li>{% endfor %}</ul></details>{% endif %}
+                            {% else %}<p>No volume data available.</p>{% endif %}
+                        </div>
+                        {% if analysis_summary_data.details.correction_guess %}
+                        <div class="summary-section correction-guess">
+                            <h3>Correction Guess (Post-Impulse)</h3><p>A potential A-B-C correction pattern might be forming after Wave 5.</p>
+                             <ul class="summary-list"><li>Est. A: <span class="value">{% if analysis_summary_data.details.correction_guess.A is not none and analysis_summary_data.details.correction_guess.A.name is not none %}{{ analysis_summary_data.details.correction_guess.A.name.strftime('%Y-%m-%d') }}{% else %}N/A{% endif %}</span></li><li>Est. B: <span class="value">{% if analysis_summary_data.details.correction_guess.B is not none and analysis_summary_data.details.correction_guess.B.name is not none %}{{ analysis_summary_data.details.correction_guess.B.name.strftime('%Y-%m-%d') }}{% else %}N/A{% endif %}</span></li><li>Est. C: <span class="value">{% if analysis_summary_data.details.correction_guess.C is not none and analysis_summary_data.details.correction_guess.C.name is not none %}{{ analysis_summary_data.details.correction_guess.C.name.strftime('%Y-%m-%d') }}{% else %}N/A{% endif %}</span></li></ul>
+                        </div>
+                         {% endif %}
+                    </div>
+                {% endif %}
+            {% else %}
+                 <div class="summary-section"><h3>Overall Status</h3><ul class="summary-list"><li>Identified Impulse Sequence? <span class="value-false">False</span></li><li><span class="value-false" style="font-weight:normal; text-align: left; flex-shrink: 1;">No standard Elliott Wave impulse sequence (0-5 waves) identified based on current rules/scoring. Check P-labels on chart for potential pivots.</span></li><li>Last Point Overall Date: <span class="value">{% if analysis_summary_data.last_point_overall is not none and analysis_summary_data.last_point_overall.name is not none %}{{ analysis_summary_data.last_point_overall.name.strftime('%Y-%m-%d') }}{% else %}N/A{% endif %}</span> (Label: {{ analysis_summary_data.last_label }})</li></ul></div>
+            {% endif %}
+            {% if analysis_summary_pretty %}
+                <details class="raw-data-details"><summary>Raw Analysis Data (JSON)</summary><pre>{{ analysis_summary_pretty }}</pre></details>
+            {% endif %}
+        {% elif request.method == 'POST' and not error and not multi_stock_results %}
+             <p style="text-align:center; color: #999; margin: 40px 0;">Analysis request processed, but no summary data available (check parameters or console logs).</p>
+        {% endif %}
+
+        <div class="disclaimer">
+            <strong>*** DEMO / EDUCATIONAL USE ONLY - EXTREME WARNING ***</strong><br>
+            This tool attempts conceptual Elliott Wave analysis. Results, paths, projections, and any generated trade ideas are highly speculative, potentially inaccurate, and unreliable. <strong>DO NOT RISK ANY REAL MONEY BASED ON THIS OUTPUT.</strong> Trading involves substantial risk of loss. Always conduct your own thorough research and consult with a qualified financial advisor before making any investment decisions.
+        </div>
+
+        <footer>
+            <p>Made by <a href="https://github.com/ESJavadex" target="_blank" rel="noopener noreferrer">Esjavadex</a></p>
+        </footer>
+
+    </div> <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // --- Elements ---
             const hideNoEntryCheckbox = document.getElementById('hide-no-entry');
             const stockTableBody = document.querySelector('.stock-results-table tbody');
             const stockRows = stockTableBody ? Array.from(stockTableBody.querySelectorAll('tr[data-has-entry]')) : [];
@@ -458,58 +632,161 @@
             const multiStockInputsGroup = document.getElementById('multi-stock-inputs');
             const singleTickerInput = document.getElementById('ticker');
 
+            // --- State Variables ---
             let currentSortColumn = 'ticker';
             let currentSortDirection = 'asc';
             let tableCollapsed = false;
 
-            toggleAnalysisModeInputs(); // Set initial form state
+            // --- Initial Setup ---
+            toggleAnalysisModeInputs();
             if (analysisModeSelect) {
                  analysisModeSelect.addEventListener('change', toggleAnalysisModeInputs);
             }
 
-            // Initialize table features if table exists
             if (stockTableBody && stockRows.length > 0) {
                 applyFilter();
                 updateSortClasses(currentSortColumn, currentSortDirection);
                 sortTable(currentSortColumn, currentSortDirection);
                 updateVisibleCount();
 
-                 if (hideNoEntryCheckbox) { hideNoEntryCheckbox.addEventListener('change', () => { applyFilter(); updateVisibleCount(); }); }
-                 if (toggleTableBtn && multiStockResultsDiv) {
+                 if (hideNoEntryCheckbox) {
+                    hideNoEntryCheckbox.addEventListener('change', () => {
+                         applyFilter();
+                         updateVisibleCount();
+                     });
+                 }
+
+                if (toggleTableBtn && multiStockResultsDiv) {
                      tableCollapsed = multiStockResultsDiv.classList.contains('collapsed');
                      updateToggleButton(tableCollapsed);
-                     toggleTableBtn.addEventListener('click', () => { tableCollapsed = !tableCollapsed; multiStockResultsDiv.classList.toggle('collapsed', tableCollapsed); updateToggleButton(tableCollapsed); });
-                 }
-                 sortableHeaders.forEach(header => { header.addEventListener('click', () => { const column = header.getAttribute('data-sort'); if (column === currentSortColumn) { currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc'; } else { currentSortColumn = column; currentSortDirection = 'asc'; } updateSortClasses(currentSortColumn, currentSortDirection); sortTable(currentSortColumn, currentSortDirection); }); });
-            } else if (multiStockResultsDiv) {
-                 if(visibleCountSpan) visibleCountSpan.textContent = "No stocks to display.";
-            }
+                    toggleTableBtn.addEventListener('click', () => {
+                        tableCollapsed = !tableCollapsed;
+                        multiStockResultsDiv.classList.toggle('collapsed', tableCollapsed);
+                        updateToggleButton(tableCollapsed);
+                    });
+                }
 
-            // Preset button listeners
-            presetButtons.forEach(button => { button.addEventListener('click', () => { const stocks = button.getAttribute('data-stocks'); if (stockListInput && stocks !== null) { stockListInput.value = stocks.trim().replace(/\s+/g, ''); stockListInput.focus(); stockListInput.blur(); } if (analysisModeSelect && stocks !== "" && stocks !== null) { analysisModeSelect.value = 'multi'; analysisModeSelect.dispatchEvent(new Event('change')); } }); });
+                sortableHeaders.forEach(header => {
+                    header.addEventListener('click', () => {
+                        const column = header.getAttribute('data-sort');
+                        if (column === currentSortColumn) {
+                            currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+                        } else {
+                            currentSortColumn = column;
+                            currentSortDirection = 'asc';
+                        }
+                        updateSortClasses(currentSortColumn, currentSortDirection);
+                        sortTable(currentSortColumn, currentSortDirection);
+                    });
+                });
+             } else if (multiStockResultsDiv) {
+                 const filterControls = document.querySelector('.filter-controls');
+                 if (filterControls) {
+                     if(visibleCountSpan) visibleCountSpan.textContent = "No stocks to display.";
+                 }
+             }
+
+            presetButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                     const stocks = button.getAttribute('data-stocks');
+                     if (stockListInput && stocks !== null) {
+                         stockListInput.value = stocks.trim().replace(/\s+/g, '');
+                         stockListInput.focus();
+                         stockListInput.blur();
+                     }
+                     if (analysisModeSelect && stocks !== "" && stocks !== null) {
+                         analysisModeSelect.value = 'multi';
+                         analysisModeSelect.dispatchEvent(new Event('change'));
+                     }
+                });
+            });
 
             // --- Functions ---
             function toggleAnalysisModeInputs() {
                  if (!analysisModeSelect || !singleTickerGroup || !multiStockInputsGroup) return;
-                 const selectedMode = analysisModeSelect.value;
-                 const showMulti = selectedMode === 'multi';
-
-                 singleTickerGroup.style.display = showMulti ? 'none' : 'flex'; // Use flex for grid item
-                 multiStockInputsGroup.style.display = showMulti ? 'flex' : 'none'; // Use flex
-
-                 // Toggle required attribute
-                 if(singleTickerInput) { singleTickerInput.required = !showMulti; }
-                 if(stockListInput) { stockListInput.required = showMulti; }
-
-                 // Adjust grid layout visibility (might need parent element if ticker/list groups affect layout)
-                 // In this simple case, display:none should work okay with grid.
+                const selectedMode = analysisModeSelect.value;
+                if (selectedMode === 'multi') {
+                    singleTickerGroup.style.display = 'none';
+                    multiStockInputsGroup.style.display = 'flex'; // Use flex for the container
+                    if(singleTickerInput) singleTickerInput.removeAttribute('required');
+                    if(stockListInput) stockListInput.setAttribute('required', 'required');
+                } else {
+                    singleTickerGroup.style.display = 'flex'; // Use flex for the container
+                    multiStockInputsGroup.style.display = 'none';
+                    if(singleTickerInput) singleTickerInput.setAttribute('required', 'required');
+                    if(stockListInput) stockListInput.removeAttribute('required');
+                }
              }
 
-            function updateToggleButton(isCollapsed) { /* ... as before ... */ if (!toggleTableBtn) return; toggleTableBtn.classList.toggle('collapsed', isCollapsed); toggleTableBtn.querySelector('.btn-text').textContent = isCollapsed ? 'Show Table' : 'Hide Table'; const icon = toggleTableBtn.querySelector('.icon'); if (icon) icon.textContent = isCollapsed ? '►' : '▼'; }
-            function updateSortClasses(column, direction) { /* ... as before ... */ sortableHeaders.forEach(h => { h.classList.remove('sort-asc', 'sort-desc'); if (h.getAttribute('data-sort') === column) { h.classList.add(direction === 'asc' ? 'sort-asc' : 'sort-desc'); } }); }
-            function applyFilter() { /* ... as before ... */ if (!hideNoEntryCheckbox) return; const hideNoEntry = hideNoEntryCheckbox.checked; stockRows.forEach(row => { const hasEntry = row.getAttribute('data-has-entry') === 'true'; row.classList.toggle('hidden', !hasEntry && hideNoEntry); }); }
-            function sortTable(column, direction) { /* ... as before ... */ if (!stockTableBody) return; const numericColumns = ['entry', 'sl', 'tp1', 'rrr', 'score', 'confidence']; const isNumeric = numericColumns.includes(column); stockRows.sort((a, b) => { let aValue = a.getAttribute(`data-${column}`) || ''; let bValue = b.getAttribute(`data-${column}`) || ''; let aIsNA = aValue === '' || aValue.toLowerCase() === 'n/a'; let bIsNA = bValue === '' || bValue.toLowerCase() === 'n/a'; if (isNumeric) { const valA = !aIsNA ? parseFloat(aValue) : (direction === 'asc' ? Infinity : -Infinity); const valB = !bIsNA ? parseFloat(bValue) : (direction === 'asc' ? Infinity : -Infinity); if (isNaN(valA) && isNaN(valB)) return 0; if (isNaN(valA)) return 1; if (isNaN(valB)) return -1; aValue = valA; bValue = valB; } else { aValue = aValue.toLowerCase(); bValue = bValue.toLowerCase(); aIsNA = aValue === '' || aValue === 'n/a'; bIsNA = bValue === '' || bValue === 'n/a'; if (aIsNA && bIsNA) return 0; if (aIsNA) return 1; if (bIsNA) return -1; } if (aValue < bValue) return direction === 'asc' ? -1 : 1; if (aValue > bValue) return direction === 'asc' ? 1 : -1; return 0; }); stockRows.forEach(row => stockTableBody.appendChild(row)); }
-            function updateVisibleCount() { /* ... as before ... */ if (!visibleCountSpan) return; const visibleRows = stockRows.filter(row => !row.classList.contains('hidden')); const totalRows = stockRows.length; if (totalRows === 0) { visibleCountSpan.textContent = "No stocks analysed."; } else { visibleCountSpan.textContent = `Showing ${visibleRows.length} of ${totalRows} stocks`; } }
+            function updateToggleButton(isCollapsed) {
+                 if (!toggleTableBtn) return;
+                 toggleTableBtn.classList.toggle('collapsed', isCollapsed);
+                 toggleTableBtn.querySelector('.btn-text').textContent = isCollapsed ? 'Show Table' : 'Hide Table';
+                 const icon = toggleTableBtn.querySelector('.icon');
+                 if (icon) icon.textContent = isCollapsed ? '►' : '▼';
+             }
+
+            function updateSortClasses(column, direction) {
+                sortableHeaders.forEach(h => {
+                    h.classList.remove('sort-asc', 'sort-desc');
+                    if (h.getAttribute('data-sort') === column) {
+                        h.classList.add(direction === 'asc' ? 'sort-asc' : 'sort-desc');
+                    }
+                });
+            }
+
+            function applyFilter() {
+                 if (!hideNoEntryCheckbox) return;
+                const hideNoEntry = hideNoEntryCheckbox.checked;
+                stockRows.forEach(row => {
+                    const hasEntry = row.getAttribute('data-has-entry') === 'true';
+                    row.classList.toggle('hidden', !hasEntry && hideNoEntry);
+                });
+            }
+
+            function sortTable(column, direction) {
+                if (!stockTableBody) return;
+                const numericColumns = ['entry', 'sl', 'tp1', 'rrr', 'score', 'confidence'];
+                const isNumeric = numericColumns.includes(column);
+                stockRows.sort((a, b) => {
+                    let aValue = a.getAttribute(`data-${column}`) || '';
+                    let bValue = b.getAttribute(`data-${column}`) || '';
+                    let aIsNA = aValue === '' || aValue.toLowerCase() === 'n/a';
+                    let bIsNA = bValue === '' || bValue.toLowerCase() === 'n/a';
+                    if (isNumeric) {
+                         const valA = !aIsNA ? parseFloat(aValue) : (direction === 'asc' ? Infinity : -Infinity);
+                         const valB = !bIsNA ? parseFloat(bValue) : (direction === 'asc' ? Infinity : -Infinity);
+                         if (isNaN(valA) && isNaN(valB)) return 0;
+                         if (isNaN(valA)) return 1;
+                         if (isNaN(valB)) return -1;
+                         aValue = valA;
+                         bValue = valB;
+                    } else {
+                         aValue = aValue.toLowerCase();
+                         bValue = bValue.toLowerCase();
+                         aIsNA = aValue === '' || aValue === 'n/a';
+                         bIsNA = bValue === '' || bValue === 'n/a';
+                         if (aIsNA && bIsNA) return 0;
+                         if (aIsNA) return 1;
+                         if (bIsNA) return -1;
+                    }
+                    if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+                    if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+                    return 0;
+                });
+                stockRows.forEach(row => stockTableBody.appendChild(row));
+            }
+
+            function updateVisibleCount() {
+                 if (!visibleCountSpan) return;
+                const visibleRows = stockRows.filter(row => !row.classList.contains('hidden'));
+                const totalRows = stockRows.length;
+                 if (totalRows === 0) {
+                    visibleCountSpan.textContent = "No stocks analysed.";
+                 } else {
+                     visibleCountSpan.textContent = `Showing ${visibleRows.length} of ${totalRows} stocks`;
+                 }
+            }
         });
     </script>
 
