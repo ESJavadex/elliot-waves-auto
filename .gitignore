@@ -172,3 +172,10 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+app_v2.py
+app_v3.py
+app_v4.py
+app.py
+gemini_v2.py
+gemini_working.py
+index copy*
