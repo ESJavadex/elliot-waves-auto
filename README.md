@@ -4,6 +4,10 @@ This is a Python-based web application for **Elliott Wave analysis** of financia
 
 ---
 
+## Image
+
+![App preview](app.png)
+
 ## 🎯 Purpose
 
 This tool is designed to help **technical traders, analysts, and developers** visualize Elliott Wave patterns, validate potential wave sequences, and simulate or plan trades using:
@@ -21,7 +25,7 @@ It’s useful for strategy development, market pattern research, and educational
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/elliott-wave-analyzer.git
+   git clone https://github.com/ESJavadex/elliot-waves-auto.git
    cd elliott-wave-analyzer
    ```
 
