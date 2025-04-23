@@ -1211,7 +1211,7 @@ def index():
     multi_stock_results = None # Variable for multiple stock analysis results
     try: # Default dates
         today = datetime.date.today()
-        default_end = (today - datetime.timedelta(days=1)).strftime('%Y-%m-%d'); default_start = (today - datetime.timedelta(days=365*2)).strftime('%Y-%m-%d')
+        default_end = today.strftime('%Y-%m-%d'); default_start = (today - datetime.timedelta(days=365*2)).strftime('%Y-%m-%d')
         default_analysis_date = (today - datetime.timedelta(days=90)).strftime('%Y-%m-%d'); default_check_date = default_end
     except Exception: default_end = '2025-04-18'; default_start = '2023-04-19'; default_analysis_date = '2025-01-19'; default_check_date = default_end
     form_values = { # Populate form values
