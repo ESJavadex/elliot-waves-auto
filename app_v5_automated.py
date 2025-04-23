@@ -507,7 +507,7 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
     # (Plot Wave Points & Path - remains the same)
     plot_waves = identified_waves is not None and not identified_waves.empty
     if plot_waves and 'EW_Label' in identified_waves.columns:
-        labels, colors, symbols, text_positions, wave_coords_x, wave_coords_y = [], [], [], [], []
+        labels, colors, symbols, text_positions, wave_coords_x, wave_coords_y = [], [], [], [], [], []
         for counter, (idx, r) in enumerate(identified_waves.iterrows()):
             lbl = r['EW_Label'] if pd.notna(r['EW_Label']) and r['EW_Label'] != "" else f"P{counter}"
             labels.append(lbl); wave_coords_x.append(idx); wave_coords_y.append(r['Close'])
@@ -669,7 +669,7 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
             except ValueError: current_label_num = -1
 
         # --- If W1 finished -> Project W2 (Primary), estimate W3 (Secondary) ---
-        if current_label_num == 1 and p0 is not None and p1 is not None and p2 is not None:
+        if current_label_num == 1 and p0 is not None and p1 is not None:
             print("  Projecting W2 (Primary) -> Est. W3...")
             p0_hl = p0['Low'] if is_impulse_up else p0['High']; p1_hl = p1['High'] if is_impulse_up else p1['Low']
             ret2 = calculate_fibonacci_retracements(p0_hl, p1_hl)
