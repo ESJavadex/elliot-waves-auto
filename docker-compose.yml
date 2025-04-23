@@ -12,6 +12,7 @@ services:
       - "5001:5001"
     volumes:
       - ./templates:/app/templates
+      - ./stocks_presets:/app/stocks_presets
     environment:
       - PYTHONUNBUFFERED=1
     # The following settings are optional but can be helpful on Raspberry Pi

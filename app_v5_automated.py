@@ -14,10 +14,76 @@ from plotly.subplots import make_subplots
 import plotly.offline
 from scipy.signal import find_peaks
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
+import glob
+import os
+
+app = Flask(__name__)
+
+# Test endpoint to verify routing
+@app.route('/api/test', methods=['GET'])
+def test_api():
+    print("\n*** TEST API ENDPOINT CALLED ***")
+    return jsonify({"status": "ok", "message": "API is working"})
+
+# Debug route to list all registered routes
+@app.route('/debug/routes', methods=['GET'])
+def debug_routes():
+    print("\n*** DEBUG ROUTES ENDPOINT CALLED ***")
+    routes = []
+    for rule in app.url_map.iter_rules():
+        routes.append({
+            'endpoint': rule.endpoint,
+            'methods': [method for method in rule.methods if method not in ['HEAD', 'OPTIONS']],
+            'path': str(rule)
+        })
+    return jsonify({
+        'routes': routes,
+        'total': len(routes)
+    })
 
 # <<< Data Cleaning Function >>>
 # (clean_data_for_json remains the same as before)
+
+# --- NEW: Stock List TXT Loader API ---
+@app.route('/api/stock_lists', methods=['GET'])
+def get_stock_lists():
+    print("\n*** API ENDPOINT CALLED: /api/stock_lists ***")
+    try:
+        # Look for all .txt files in the stocks_presets directory
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        print(f"Base directory: {base_dir}")
+        
+        presets_dir = os.path.join(base_dir, 'stocks_presets')
+        print(f"Presets directory: {presets_dir}")
+        
+        # Check if directory exists
+        if not os.path.exists(presets_dir):
+            print(f"ERROR: Directory does not exist: {presets_dir}")
+            return jsonify({"error": f"Directory not found: {presets_dir}"}), 500
+        
+        # List all files in the directory
+        all_files = os.listdir(presets_dir)
+        print(f"All files in directory: {all_files}")
+        
+        txt_files = [f for f in glob.glob(os.path.join(presets_dir, '*.txt'))]
+        print(f"TXT files found: {txt_files}")
+        
+        result = {}
+        for path in txt_files:
+            name = os.path.splitext(os.path.basename(path))[0]
+            print(f"Processing file: {name}")
+            with open(path, 'r') as f:
+                content = f.read().strip()
+            result[name] = content
+        
+        print(f"Final result: {result}")
+        return jsonify(result)
+    except Exception as e:
+        print(f"ERROR in get_stock_lists: {str(e)}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 def clean_data_for_json(obj):
     """
     Recursively traverses a dictionary or list and converts non-JSON-compliant
@@ -737,7 +803,8 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
                  wb_t1, wb_t2 = retB.get(0.382), retB.get(0.618) # Keep B retrace zone
                  center_wb = draw_target_box("Wave B", wb_t1, wb_t2, "135, 206, 250", offset_primary, "38.2-61.8% WA Ret", pa, primary=True, **common_args)
                  if center_wb:
-                     hypo_pB_price = center_wb[1]; wa_start_close = p5['Close']; wa_end_close = pa['Close']
+                     hypo_pB_price = center_wb[1]
+                     wa_start_close = p5['Close']; wa_end_close = pa['Close']
                      if not pd.isna(wa_start_close) and not pd.isna(wa_end_close):
                          extC = calculate_fibonacci_extensions(wa_start_close, wa_end_close, hypo_pB_price)
                          # FLEXIBILITY: Widen C target zone
@@ -1209,6 +1276,29 @@ def index():
     plot_html = None; error = None; analysis_summary_data = None; analysis_summary_pretty = None
     trade_recommendation_data = None # Variable for trade recommendation
     multi_stock_results = None # Variable for multiple stock analysis results
+    
+    # Load stock lists from TXT files
+    stock_lists = {}
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        presets_dir = os.path.join(base_dir, 'stocks_presets')
+        
+        # Check if directory exists
+        if os.path.exists(presets_dir):
+            print(f"Loading stock lists from {presets_dir}")
+            txt_files = glob.glob(os.path.join(presets_dir, '*.txt'))
+            
+            for path in txt_files:
+                name = os.path.splitext(os.path.basename(path))[0]
+                with open(path, 'r') as f:
+                    content = f.read().strip()
+                stock_lists[name] = content
+                print(f"Loaded stock list: {name} with {len(content.split(','))} stocks")
+        else:
+            print(f"Stock presets directory not found: {presets_dir}")
+    except Exception as e:
+        print(f"Error loading stock lists: {str(e)}")
+        traceback.print_exc()
     try: # Default dates
         today = datetime.date.today()
         default_end = today.strftime('%Y-%m-%d'); default_start = (today - datetime.timedelta(days=365*2)).strftime('%Y-%m-%d')
@@ -1781,8 +1871,19 @@ def index():
                            default_start_date=default_start,
                            default_end_date=default_end,
                            default_analysis_date=default_analysis_date,
-                           default_check_date=default_check_date)
+                           default_check_date=default_check_date,
+                           stock_lists=stock_lists)  # Pass stock lists to template
 
 if __name__ == '__main__':
-    print("\n--- Starting Flask Server ---"); print("Go to http://0.0.0.0:5001/ in your browser."); print("Press CTRL+C to stop the server.")
+    print("\n--- Starting Flask Server ---")
+    print("Go to http://0.0.0.0:5001/ in your browser.")
+    print("Press CTRL+C to stop the server.")
+    
+    # Print all registered routes for debugging
+    print("\n--- Registered Routes ---")
+    for rule in app.url_map.iter_rules():
+        methods = ','.join([method for method in rule.methods if method not in ['HEAD', 'OPTIONS']])
+        print(f"Route: {rule} - Methods: {methods} - Endpoint: {rule.endpoint}")
+    
+    # Make sure Flask is listening on all interfaces
     app.run(debug=True, host='0.0.0.0', port=5001, threaded=True)

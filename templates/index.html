@@ -331,188 +331,21 @@
                         </select>
                     </div>
 
-                    <div class="input-group" id="single-ticker-group" style="/* grid-column: span 2; */">
+                    <div class="input-group" id="single-ticker-group">
                         <label for="ticker">Ticker:</label>
                         <input type="text" id="ticker" name="ticker" value="{{ form_values.ticker | default('^SPX', true) }}">
                         <small>Enter a single stock ticker (e.g., AAPL, ^SPX).</small>
                     </div>
 
-                    <div id="multi-stock-inputs" style="/* grid-column: span 2; */">
+                    <div id="multi-stock-inputs">
                         <div class="input-group">
                             <label for="stock_list">Stock List (comma separated):</label>
                             <input type="text" id="stock_list" name="stock_list" value="{{ form_values.stock_list }}" placeholder="MSFT,AAPL,NVDA,SPY">
                             <small>Enter multiple tickers separated by commas.</small>
                         </div>
                          <div class="quick-presets-container"> <span class="quick-presets-label">Quick Presets:</span>
-                            <div class="quick-presets">
-                                <button type="button" class="preset-btn" data-stocks="MSFT,AAPL,NVDA,GOOGL,META,AMZN,TSLA">Tech Giants</button>
-                                <button type="button" class="preset-btn" data-stocks="SPY,QQQ,DIA,IWM,VTI">Major ETFs</button>
-                                <button type="button" class="preset-btn" data-stocks="A, AAL, AAP, AAPL, ABBV, ABT, ABC, ABNB, ACN, ADBE,
-
-                                                    ADI, ADM, ADP, ADSK, AEE, AEP, AES, AFL, AIG, AIZ,
-                                
-                                                    AJG, AKAM, ALB, ALGN, ALK, ALL, ALLE, ALNY, AMAT, AMCR,
-                                
-                                                    AMD, AME, AMED, AMG, AMGN, AMP, AMT, AMZN, ANET, ANSS,
-                                
-                                                    AON, AOS, APA, APD, APH, APO, APP, APTV, AR, ARES,
-                                
-                                                    ARGX, ARM, ARRY, ARW, ASML, ATO, ATUS, AVB, AVGO, AVY,
-                                
-                                                    AWK, AXON, AXP, AZN, AZO, BA, BAC, BALL, BAX, BBWI,
-                                
-                                                    BBY, BC, BDX, BEN, BEPC, BG, BHC, BIIB, BILL, BIO,
-                                
-                                                    BK, BKNG, BKR, BLK, BLDR, BMBL, BMRN, BMY, BN, BNRE,
-                                
-                                                    BNTX, BR, BRK-B, BRO, BSX, BSY, BURL, BX, C, CAG,
-                                
-                                                    CAH, CARR, CAT, CB, CBOE, CBRE, CCI, CCL, CDAY, CDNS,
-                                
-                                                    CDW, CE, CEG, CF, CFG, CHD, CHH, CHKP, CHRW, CHTR,
-                                
-                                                    CI, CINF, CL, CLX, CMA, CMCSA, CME, CMG, CMI, CMS,
-                                
-                                                    CNC, CNHI, CNM, CNP, CNQ, COF, COIN, COO, COP, COR,
-                                
-                                                    COST, COUP, CP, CPB, CPRT, CPT, CRM, CRL, CSCO, CSGP,
-                                
-                                                    CSL, CSX, CTAS, CTLT, CTRA, CTSH, CUBE, CVS, CVNA, CVX,
-                                
-                                                    CW, CZR, D, DAL, DASH, DB, DD, DDOG, DE, DECK,
-                                
-                                                    DFS, DG, DGX, DHI, DHR, DIS, DISH, DKNG, DKS, DLR,
-                                
-                                                    DLTR, DOCU, DOCS, DOV, DOW, DPZ, DRI, DTE, DTM, DUOL,
-                                
-                                                    DUK, DVN, DXCM, EA, EBAY, ECL, ED, EDR, EFX, EG,
-                                
-                                                    EHC, EIX, EL, ELAN, ELV, EMN, EMR, ENB, ENPH, ENTG,
-                                
-                                                    EOG, EPAM, EPD, EQH, EQIX, EQNR, EQR, EQT, ERIE, ES,
-                                
-                                                    ESS, ESTC, ET, ETN, ETR, ETSY, EVBG, EVRG, EW, EWBC,
-                                
-                                                    EXAS, EXC, EXEL, EXP, EXPD, EXPE, EXR, F, FANG, FAST,
-                                
-                                                    FCN, FCX, FDS, FDX, FE, FFIV, FG, FHN, FICO, FIS,
-                                
-                                                    FISV, FITB, FLT, FMC, FMX, FN, FND, FNF, FNV, FOXA,
-                                
-                                                    FRT, FSLR, FTAI, FTNT, FTV, GD, GDDY, GE, GEHC, GEN,
-                                
-                                                    GFL, GIB, GILD, GIS, GPN, GOOGL, GRMN, GS, GTLB, GWW,
-                                
-                                                    HAL, HAS, HCA, HD, HDB, HEI, HES, HIG, HII, HLT,
-                                
-                                                    HMC, HOG, HOLX, HON, HPE, HPQ, HRL, HSBC, HSIC, HST,
-                                
-                                                    HSY, HTHT, HTZ, HUBB, HUBS, HUM, HWM, HZNP, IAC, IAG,
-                                
-                                                    IBM, IBKR, ICE, IDXX, IEP, IEX, IFF, IHG, IIIV, ILMN,
-                                
-                                                    IMCD, IMO, INCY, INFY, ING, INGR, INTC, INTU, IONS, IP,
-                                
-                                                    IPG, IQV, IR, IRM, ISRG, IT, ITT, ITW, IVZ, IX,
-                                
-                                                    J, JBL, JBLU, JCI, JD, JKHY, JMIA, JNJ, JPM, K,
-                                
-                                                    KBR, KDP, KEP, KEY, KEYS, KHC, KKR, KLAC, KMB, KMI,
-                                
-                                                    KMX, KNX, KO, KR, KSS, L, LAZR, LDOS, LEA, LECO,
-                                
-                                                    LEG, LEN, LH, LHX, LI, LIN, LKQ, LLY, LMT, LNC,
-                                
-                                                    LNG, LNT, LOGI, LOW, LPLA, LPX, LRCX, LSTR, LSXMK, LULU,
-                                
-                                                    LUV, LVS, LW, LYB, LYFT, LYV, MA, MAA, MAN, MANH,
-                                
-                                                    MAR, MAS, MAT, MCD, MCHP, MCK, MCO, MCW, MDLZ, MDT,
-                                
-                                                    MDU, MELI, META, MET, MGM, MHK, MI, MIRM, MKC, MKL,
-                                
-                                                    MKSI, MKTX, MLM, MMC, MMM, MNST, MO, MOH, MOS, MPC,
-                                
-                                                    MPWR, MQ, MRK, MRNA, MRVL, MS, MSCI, MSI, MSFT, MTB,
-                                
-                                                    MTCH, MTD, MU, NCLH, NDAQ, NDSN, NEE, NET, NFLX, NGG,
-                                
-                                                    NI, NIO, NKE, NKLA, NLOK, NLSN, NOC, NODK, NOV, NOVO,
-                                
-                                                    NOW, NRG, NSC, NTAP, NTES, NTNX, NTRS, NUE, NUS, NVAX,
-                                
-                                                    NVCR, NVDA, NVO, NVR, NWL, NWS, NXPI, NYCB, O, OC,
-                                
-                                                    ODFL, OGN, OKE, OKTA, OLN, ON, ONON, ONTO, OOMA, ORCL,
-                                
-                                                    ORA, ORLY, OTIS, OUST, OVV, OWL, OXM, OXY, PAAS, PACB,
-                                
-                                                    PANW, PARA, PATH, PAYC, PAYX, PCAR, PCG, PCH, PDD, PEG,
-                                
-                                                    PEN, PENN, PEP, PFE, PFG, PG, PGR, PH, PHM, PINS,
-                                
-                                                    PKG, PLD, PLNT, PLTR, PLUG, PM, PNC, PNFP, PNM, PNR,
-                                
-                                                    PNW, PODD, POOL, POWI, POWL, PPG, PPL, PRGO, PRI, PRU,
-                                
-                                                    PSA, PSN, PSX, PTC, PWR, PXD, PYPL, QCOM, QGEN, QRVO,
-                                
-                                                    R, RACE, RAMP, RBLX, RCL, RE, REGN, RELX, REV, RF,
-                                
-                                                    RGEN, RGLD, RH, RIO, RJF, RL, RLX, RMD, ROIV, ROK,
-                                
-                                                    ROL, ROP, ROST, RPRX, RRC, RS, RSG, RTX, RUN, RVLV,
-                                
-                                                    RY, RYAAY, RYAN, S, SAIA, SAN, SAP, SAVA, SBAC, SBLK,
-                                
-                                                    SBUX, SCCO, SCHW, SCI, SCL, SCPL, SCRM, SE, SEE, SGEN,
-                                
-                                                    SHC, SHEL, SHW, SIG, SIRI, SIVB, SIX, SJM, SKX, SLB,
-                                
-                                                    SLF, SLG, SM, SMAR, SMCI, SMG, SMMT, SNA, SNAP, SNOW,
-                                
-                                                    SNPS, SO, SONY, SPG, SPGI, SPLK, SPNT, SPR, SPWR, SQ,
-                                
-                                                    SQSP, SRCL, SRE, SRPT, SSNC, SSTK, ST, STAA, STAG, STLA,
-                                
-                                                    STLD, STM, STNE, STOR, STT, STWD, STX, STZ, SU, SUN,
-                                
-                                                    SWAV, SWK, SWKS, SYF, SYK, SYNA, T, TAK, TAL, TAP,
-                                
-                                                    TARO, TD, TDG, TDOC, TDS, TDY, TECH, TECK, TEF, TEL,
-                                
-                                                    TENB, TER, TFC, TFX, TGT, THC, TIGO, TJX, TKR, TLK,
-                                
-                                                    TMO, TM, TMBR, TME, TMUS, TOL, TOST, TPR, TRGP, TRIP,
-                                
-                                                    TRMB, TROW, TRP, TRU, TRV, TRVG, TS, TSCO, TSM, TSN,
-                                
-                                                    TTC, TTD, TTWO, TU, TW, TWLO, TXN, TXT, TYL, UA,
-                                
-                                                    UAL, UBER, UBS, UDR, UHAL, UI, UL, ULTA, UMC, UMG,
-                                
-                                                    UNH, UNP, UPS, UPST, URI, USB, V, VALE, VEEV, VERX,
-                                
-                                                    VFC, VGT, VIAV, VICI, VIPS, VLO, VLTO, VMC, VMI, VMW,
-                                
-                                                    VOD, VOO, VOYA, VRSK, VRSN, VRTX, VSCO, VSH, VST, VTI,
-                                
-                                                    VTR, VVV, VXUS, VYM, VZ, W, WAB, WBA, WBD, WBS,
-                                
-                                                    WCN, WD, WDAY, WDC, WEC, WELL, WES, WFC, WFRD, WGO,
-                                
-                                                    WH, WHR, WM, WMB, WMT, WOLF, WOW, WPM, WRB, WRK,
-                                
-                                                    WSC, WSFS, WSM, WSO, WST, WTFC, WTW, WY, WYNN, X,
-                                
-                                                    XEL, XENE, XLE, XLF, XLI, XLK, XLP, XLU, XLV, XLY,
-                                
-                                                    XM, XOM, XPEV, XPO, XRX, XYL, Y, YELP, YETI, YUM,
-                                
-                                                    YUMC, Z, ZBH, ZBRA, ZEN, ZG, ZI, ZIM, ZM, ZS,
-                                
-                                                    ZTO, ZTS">ALL</button>
-                                <button type="button" class="preset-btn" data-stocks="">Clear</button>
+                            <div class="quick-presets" id="presets-container">
+                                <!-- Preset buttons will be loaded here via JavaScript -->
                             </div>
                         </div>
                     </div>
@@ -743,7 +576,7 @@
                         </div>
                          <div class="summary-section">
                             <h3>Fibonacci Ratios (Wave Relationships)</h3>
-                            {% if analysis_summary_data.details.fib_ratios %}<ul class="summary-list fibs">{% for name, data in analysis_summary_data.details.fib_ratios.items() %}{% if data is iterable and data|length == 2 and data[0] is not none and data[0] != 'NaN' and data[0] is number %}<li>{{ name.replace('_', ' ').title() }}: <span class="value">{{ data[1] }}</span> <span>(Actual: {{ "%.3f"|format(data[0]) }})</span></li>{% else %}<li>{{ name.replace('_', ' ').title() }}: <span class="value" style="color:var(--text-muted)">N/A</span> <span>(Actual: {{ data[0] | default('N/A') }})</span></li>{% endif %}{% endfor %}</ul>{% else %}<p>No Fibonacci ratio data available.</p>{% endif %}
+                            {% if analysis_summary_data.details.fib_ratios %}<ul class="summary-list fibs">{% for name, data in analysis_summary_data.details.fib_ratios.items() %}{% if data is iterable and data|length == 2 and data[0] is not none and data[0] != 'NaN' and data[0] is number %}<li>{{ name.replace('_', ' ').title() }}: <span class="value">{{ data[1] }}</span> <span>(Actual: {{ "%.3f"|format(data[0]) }})</span></li>{% else %}<li>{{ name.replace('_', ' ').title() }}: <span class="value" style="color:var(--text-muted);">N/A</span> <span>(Actual: {{ data[0] | default('N/A') }})</span></li>{% endif %}{% endfor %}</ul>{% else %}<p>No Fibonacci ratio data available.</p>{% endif %}
                         </div>
                          <div class="summary-section">
                             <h3>Volume Analysis (Basic Guidelines)</h3>
@@ -795,6 +628,67 @@
             const singleTickerGroup = document.getElementById('single-ticker-group');
             const multiStockInputsGroup = document.getElementById('multi-stock-inputs');
             const singleTickerInput = document.getElementById('ticker');
+
+            // --- Load Stock Presets ---
+            console.log('Loading stock lists from template data...');
+            try {
+                // Get stock lists from template data
+                const stockListsData = {% if stock_lists %}{{ stock_lists|tojson|safe }}{% else %}{} {% endif %};
+                console.log('Stock lists from template:', stockListsData);
+                
+                const container = document.getElementById('presets-container');
+                if (!container) return;
+                
+                // Clear existing buttons
+                container.innerHTML = '';
+                
+                // Create buttons for each preset
+                for (const [name, stocks] of Object.entries(stockListsData)) {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'preset-btn';
+                    button.textContent = name;
+                    button.setAttribute('data-stocks', stocks);
+                    
+                    button.addEventListener('click', () => {
+                        if (stockListInput) {
+                            stockListInput.value = stocks.trim().replace(/\s+/g, '');
+                            stockListInput.focus();
+                            stockListInput.blur();
+                        }
+                        if (analysisModeSelect) {
+                            analysisModeSelect.value = 'multi';
+                            analysisModeSelect.dispatchEvent(new Event('change'));
+                        }
+                    });
+                    
+                    container.appendChild(button);
+                }
+                
+                // Add a clear button
+                const clearButton = document.createElement('button');
+                clearButton.type = 'button';
+                clearButton.className = 'preset-btn';
+                clearButton.textContent = 'Clear';
+                clearButton.setAttribute('data-stocks', '');
+                
+                clearButton.addEventListener('click', () => {
+                    if (stockListInput) {
+                        stockListInput.value = '';
+                        stockListInput.focus();
+                        stockListInput.blur();
+                    }
+                });
+                
+                container.appendChild(clearButton);
+            } catch (error) {
+                console.error('Error loading stock presets:', error);
+                // Add a message to the presets container
+                const container = document.getElementById('presets-container');
+                if (container) {
+                    container.innerHTML = `<div style="color:red; padding:10px;">Error loading presets: ${error.message}</div>`;
+                }
+            }
 
             // --- State Variables ---
             let currentSortColumn = 'ticker';
@@ -871,11 +765,11 @@
                 const selectedMode = analysisModeSelect.value;
                 if (selectedMode === 'multi') {
                     singleTickerGroup.style.display = 'none';
-                    multiStockInputsGroup.style.display = 'flex'; // Use flex for the container
+                    multiStockInputsGroup.style.display = 'flex'; 
                     if(singleTickerInput) singleTickerInput.removeAttribute('required');
                     if(stockListInput) stockListInput.setAttribute('required', 'required');
                 } else {
-                    singleTickerGroup.style.display = 'flex'; // Use flex for the container
+                    singleTickerGroup.style.display = 'flex'; 
                     multiStockInputsGroup.style.display = 'none';
                     if(singleTickerInput) singleTickerInput.setAttribute('required', 'required');
                     if(stockListInput) stockListInput.removeAttribute('required');
@@ -952,6 +846,8 @@
                  }
             }
         });
+
+        // Second DOMContentLoaded event listener removed - content moved to the first one
     </script>
 
 </body>
