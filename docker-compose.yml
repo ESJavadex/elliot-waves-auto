@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  elliott-wave-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: elliott-wave-app
+    container_name: elliott-wave-app
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./templates:/app/templates
+    environment:
+      - PYTHONUNBUFFERED=1
+    # The following settings are optional but can be helpful on Raspberry Pi
+    deploy:
+      resources:
+        limits:
+          memory: 1G

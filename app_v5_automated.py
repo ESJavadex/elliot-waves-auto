@@ -1784,5 +1784,5 @@ def index():
                            default_check_date=default_check_date)
 
 if __name__ == '__main__':
-    print("\n--- Starting Flask Server ---"); print("Go to http://127.0.0.1:5000/ in your browser."); print("Press CTRL+C to stop the server.")
-    app.run(debug=True, host='127.0.0.1', port=5000, threaded=True)
+    print("\n--- Starting Flask Server ---"); print("Go to http://0.0.0.0:5001/ in your browser."); print("Press CTRL+C to stop the server.")
+    app.run(debug=True, host='0.0.0.0', port=5001, threaded=True)

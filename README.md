@@ -66,4 +66,29 @@ It’s useful for strategy development, market pattern research, and educational
 
 ---
 
+## 🐳 Docker Deployment
+
+You can also run the application using Docker, which is especially useful for deployment on a Raspberry Pi:
+
+1. **Build and start the Docker container**:
+   ```bash
+   docker-compose up -d
+   ```
+
+2. Access the application in your browser at:
+   [http://0.0.0.0:5001](http://0.0.0.0:5001)
+
+3. **Stop the Docker container**:
+   ```bash
+   docker-compose down
+   ```
+
+The Docker configuration:
+- Uses Python 3.11 as the base image
+- Exposes port 5001 for web access
+- Mounts the templates directory as a volume
+- Includes resource limits for Raspberry Pi compatibility
+
+---
+
 > 💡 This app is for **educational and strategy development** only. Do not use it for live trading.
