@@ -76,7 +76,7 @@ You can also run the application using Docker, which is especially useful for de
    ```
 
 2. Access the application in your browser at:
-   [http://0.0.0.0:5001](http://0.0.0.0:5001)
+   [http://your-host-ip:5001](http://your-host-ip:5001)
 
 3. **Stop the Docker container**:
    ```bash
