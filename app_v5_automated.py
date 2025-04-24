@@ -1078,10 +1078,7 @@ def calculate_backtest_stats(trade_recommendation, future_data):
     
     # Calculate current percentage change from entry
     if entry_price > 0:
-        if signal == "Long":
-            current_pct_change = ((stats['final_price'] - entry_price) / entry_price) * 100
-        else:  # Short
-            current_pct_change = ((entry_price - stats['final_price']) / entry_price) * 100
+        current_pct_change = ((stats['final_price'] - entry_price) / entry_price) * 100
         stats['current_pct_change'] = round(current_pct_change, 2)
     
     # Calculate days in trade
@@ -1099,14 +1096,29 @@ def calculate_backtest_stats(trade_recommendation, future_data):
     for idx, row in future_data.iterrows():
         # For Long positions:
         if signal == "Long":
-            # Check for highest profit point using the High price
-            highest_profit_pct = ((row['High'] - entry_price) / entry_price) * 100
-            # Check for lowest loss point using the Low price
-            lowest_loss_pct = ((row['Low'] - entry_price) / entry_price) * 100
+            # Calculate profit/loss based on high and low prices
+            current_profit_pct = ((row['High'] - entry_price) / entry_price) * 100
+            current_loss_pct = ((row['Low'] - entry_price) / entry_price) * 100
             
-            # Update max profit/loss
-            max_profit_pct = max(max_profit_pct, highest_profit_pct)
-            max_loss_pct = min(max_loss_pct, lowest_loss_pct)
+            # Update max profit/loss with reference to TP and SL levels
+            if tp2_price is not None and row['High'] >= tp2_price:
+                # If TP2 is hit, use TP2 for max profit
+                tp2_pct = ((tp2_price - entry_price) / entry_price) * 100
+                max_profit_pct = max(max_profit_pct, tp2_pct)
+            elif tp1_price is not None and row['High'] >= tp1_price:
+                # If TP1 is hit, use TP1 for max profit
+                tp1_pct = ((tp1_price - entry_price) / entry_price) * 100
+                max_profit_pct = max(max_profit_pct, tp1_pct)
+            else:
+                # Otherwise use the current price for max profit
+                max_profit_pct = max(max_profit_pct, current_profit_pct)
+            
+            # For max loss, use either SL or current price, whichever is lower
+            if row['Low'] <= sl_price:
+                sl_pct = ((sl_price - entry_price) / entry_price) * 100
+                max_loss_pct = min(max_loss_pct, sl_pct)
+            else:
+                max_loss_pct = min(max_loss_pct, current_loss_pct)
             
             # Check if SL was hit (long: price went below SL)
             if not hit_sl and row['Low'] <= sl_price:
@@ -1127,14 +1139,29 @@ def calculate_backtest_stats(trade_recommendation, future_data):
                 stats['hit_tp2_date'] = idx
                 
         else:  # Short position
-            # Check for highest profit point using the Low price (profit increases as price decreases)
-            highest_profit_pct = ((entry_price - row['Low']) / entry_price) * 100
-            # Check for highest loss point using the High price (loss increases as price increases)
-            lowest_loss_pct = ((entry_price - row['High']) / entry_price) * 100
+            # Calculate profit/loss based on high and low prices (inverted for shorts)
+            current_profit_pct = ((entry_price - row['Low']) / entry_price) * 100
+            current_loss_pct = ((entry_price - row['High']) / entry_price) * 100
             
-            # Update max profit/loss
-            max_profit_pct = max(max_profit_pct, highest_profit_pct)
-            max_loss_pct = min(max_loss_pct, lowest_loss_pct)
+            # Update max profit/loss with reference to TP and SL levels
+            if tp2_price is not None and row['Low'] <= tp2_price:
+                # If TP2 is hit, use TP2 for max profit
+                tp2_pct = ((entry_price - tp2_price) / entry_price) * 100
+                max_profit_pct = max(max_profit_pct, tp2_pct)
+            elif tp1_price is not None and row['Low'] <= tp1_price:
+                # If TP1 is hit, use TP1 for max profit
+                tp1_pct = ((entry_price - tp1_price) / entry_price) * 100
+                max_profit_pct = max(max_profit_pct, tp1_pct)
+            else:
+                # Otherwise use the current price for max profit
+                max_profit_pct = max(max_profit_pct, current_profit_pct)
+            
+            # For max loss, use either SL or current price, whichever is lower
+            if row['High'] >= sl_price:
+                sl_pct = ((entry_price - sl_price) / entry_price) * 100
+                max_loss_pct = min(max_loss_pct, sl_pct)
+            else:
+                max_loss_pct = min(max_loss_pct, current_loss_pct)
             
             # Check if SL was hit (short: price went above SL)
             if not hit_sl and row['High'] >= sl_price:
@@ -1932,7 +1959,7 @@ def index():
                             opacity=0.8
                         )
                         
-                        # Calculate percentage changes - corrected for direction
+                        # Calculate percentage changes
                         if signal == "Long":
                             sl_pct = ((sl - entry) / entry) * 100
                             tp1_pct = ((tp1 - entry) / entry) * 100 if tp1 is not None else None
@@ -2119,6 +2146,16 @@ def index():
                             sl_pct = ((entry - sl) / entry) * 100
                             tp1_pct = ((entry - tp1) / entry) * 100 if tp1 is not None else None
                             tp2_pct = ((entry - tp2) / entry) * 100 if tp2 is not None else None
+                        
+                        # Set colors based on signal type (Long/Short)
+                        if signal == "Long":
+                            entry_color = "rgba(0, 150, 255, 0.9)"  # Blue for long entry
+                            sl_color = "rgba(255, 59, 59, 0.9)"     # Red for stop loss
+                            tp_color = "rgba(0, 180, 75, 0.9)"      # Green for take profit
+                        else:  # Short
+                            entry_color = "rgba(255, 59, 59, 0.9)"  # Red for short entry
+                            sl_color = "rgba(255, 59, 59, 0.9)"     # Red for stop loss
+                            tp_color = "rgba(0, 180, 75, 0.9)"      # Green for take profit
                         
                         # Add Entry Line with TradingView-style box
                         fig.add_shape(
