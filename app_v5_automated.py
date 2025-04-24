@@ -586,7 +586,8 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
         # (draw_target_box function code as provided before)
         def draw_target_box(target_wave_label, low_level, high_level, color_rgb, time_offset,
                              fib_levels_str="", basis_point=None, current_price=None, primary=True,
-                             basis_info_override=None, full_data=None, major_fibs_data=None, custom_start_date=None):
+                             basis_info_override=None, full_data=None, major_fibs_data=None, custom_start_date=None,
+                             entry_price=None):  # Added entry_price parameter
              """Adds a target box shape and annotation, returns center coords."""
              if low_level is None or high_level is None or math.isnan(low_level) or math.isnan(high_level) or basis_point is None: return None
              target_low, target_high = min(low_level, high_level), max(low_level, high_level)
@@ -598,6 +599,13 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
              box_opacity = 0.18 if primary else 0.12; line_style = "dash" if primary else "dot"
              label_prefix = "Proj." if primary else "Est."; font_size = 10 if primary else 9
              status_text = ""
+             
+             # Calculate percentage changes if entry price is available
+             pct_change_low, pct_change_high = "", ""
+             if entry_price is not None and not pd.isna(entry_price) and entry_price > 0:
+                 pct_change_low = f" ({((target_low - entry_price) / entry_price * 100):+.2f}%)"
+                 pct_change_high = f" ({((target_high - entry_price) / entry_price * 100):+.2f}%)"
+             
              if current_price is not None and not pd.isna(current_price):
                  wave_char = None; moving_down_expected = False
                  if isinstance(target_wave_label, str):
@@ -649,7 +657,11 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
                            line=dict(color=f"rgba({color_rgb}, 0.7)", width=1, dash=line_style), fillcolor=f"rgba({color_rgb}, {box_opacity})", row=1, col=1)
              basis_date_str = basis_point.name.strftime('%Y-%m-%d') if basis_point is not None and pd.notna(basis_point.name) else "N/A"
              basis_text = basis_info_override if basis_info_override else f"(Basis: W{projection_basis_label} {basis_date_str})"
-             annotation_text = (f"<b>{label_prefix} {target_wave_label} Zone</b> {status_text}<br>{fib_levels_str} {basis_text}<br>{target_low:.2f} - {target_high:.2f}{confluence_text}")
+             
+             # Update annotation text to include percentage changes
+             price_range_text = f"{target_low:.2f}{pct_change_low} - {target_high:.2f}{pct_change_high}"
+             annotation_text = (f"<b>{label_prefix} {target_wave_label} Zone</b> {status_text}<br>{fib_levels_str} {basis_text}<br>{price_range_text}{confluence_text}")
+             
              fig.add_annotation(x=actual_start_date + (box_end_date - actual_start_date) / 2, y=target_high, text=annotation_text, showarrow=False,
                                 font=dict(color="white", size=font_size), bgcolor="rgba(50,50,50,0.8)", bordercolor=f"rgba({color_rgb}, 0.8)", borderwidth=1,
                                 xanchor="center", yanchor="bottom", row=1, col=1)
@@ -978,17 +990,184 @@ def run_backtest_simulation(ticker, start_date, analysis_date, check_date, inter
         print(f"Fetching future data from {future_start_str} to {check_date}")
         future_data = get_stock_data(ticker, future_start_str, check_date, interval)
     except Exception as e: print(f"Error fetching future data: {e}"); future_data = None
+    
+    # Get the trade recommendation based on analysis_date data
+    analysis_data = get_stock_data(ticker, start_date, analysis_date, interval)
+    trade_recommendation_data = None
+    if analysis_data is not None and not analysis_data.empty and analysis_summary and not analysis_summary.get('error'):
+        trade_recommendation_data = generate_trade_recommendation(
+            analysis_summary,
+            analysis_data,
+            risk_percent=1.0,  # Default risk value
+            demo_account_size=10000  # Default account size
+        )
+        
+        # Store the trade recommendation in the analysis summary
+        if analysis_summary is None:
+            analysis_summary = {}
+        analysis_summary['trade_recommendation'] = trade_recommendation_data
+    
+    # Calculate backtest statistics if we have both future data and trade recommendation
+    backtest_stats = None
+    if future_data is not None and not future_data.empty and trade_recommendation_data and trade_recommendation_data['status'] == 'Trade Found':
+        backtest_stats = calculate_backtest_stats(trade_recommendation_data, future_data)
+        
+        # Add backtest stats to the analysis summary
+        if analysis_summary is None:
+            analysis_summary = {}
+        analysis_summary['backtest_stats'] = backtest_stats
+    
     if future_data is not None and not future_data.empty:
         print(f"Overlaying {len(future_data)} future data points onto the plot.")
         try:
             fig_past.add_trace(go.Candlestick(x=future_data.index, open=future_data['Open'], high=future_data['High'], low=future_data['Low'], close=future_data['Close'], name=f'{ticker} Future Actual', increasing=dict(line=dict(color='rgba(152, 251, 152, 0.9)')), decreasing=dict(line=dict(color='rgba(240, 128, 128, 0.9)')), showlegend=True), row=1, col=1)
         except Exception as overlay_err: print(f"!!! Error overlaying future data: {overlay_err}"); traceback.print_exc(); analysis_summary['warning'] = analysis_summary.get('warning', "") + f"; Failed to overlay future data: {overlay_err}"
     else: print("No future data found or fetched to overlay."); analysis_summary['warning'] = analysis_summary.get('warning', "") + "; No future data found/fetched for backtest overlay."
+    
     original_title = fig_past.layout.title.text.split('<br><sup>')[0]
     backtest_title = f"EW Backtest: Analysis as of {analysis_date}, Checked up to {check_date}<br>" + original_title
     fig_past.update_layout(title=dict(text=backtest_title + "<br><sup><b>*** DEMO / EDUCATIONAL USE ONLY - ANALYSIS & PROJECTIONS ARE HIGHLY SPECULATIVE - NOT FOR TRADING ***</b></sup>", font=dict(size=14), x=0.5, xanchor='center'))
     print("\n" + "-" * 60); print("Backtest simulation finished."); print(f"(Total execution time: {datetime.datetime.now() - start_time})"); print("-" * 60)
     return fig_past, analysis_summary
+
+def calculate_backtest_stats(trade_recommendation, future_data):
+    """
+    Calculate backtest statistics based on trade recommendation and future price data.
+    
+    Args:
+        trade_recommendation (dict): Trade recommendation data with entry, SL, TP levels
+        future_data (DataFrame): Future price data to check against
+        
+    Returns:
+        dict: Statistics about the backtest including TP/SL hit status and timings
+    """
+    print("Calculating backtest statistics...")
+    
+    stats = {
+        'status': 'still_running',  # Default status
+        'hit_tp1': False,
+        'hit_tp2': False,
+        'hit_sl': False,
+        'hit_tp1_date': None,
+        'hit_tp2_date': None,
+        'hit_sl_date': None,
+        'max_profit_pct': 0,
+        'max_loss_pct': 0,
+        'current_pct_change': 0,
+        'days_in_trade': 0,
+        'final_price': None
+    }
+    
+    # Extract price levels from trade recommendation
+    entry_price = trade_recommendation.get('entry_price')
+    sl_price = trade_recommendation.get('stop_loss_price')
+    tp1_price = trade_recommendation.get('tp1_price')
+    tp2_price = trade_recommendation.get('tp2_price')
+    signal = trade_recommendation.get('signal')
+    
+    if not entry_price or not sl_price or not signal:
+        print("  Missing key trade data, can't calculate backtest stats")
+        return stats
+    
+    if future_data.empty:
+        print("  No future data available for backtest")
+        return stats
+    
+    # Record final price from the future data
+    stats['final_price'] = future_data['Close'].iloc[-1]
+    
+    # Calculate current percentage change from entry
+    if entry_price > 0:
+        current_pct_change = ((stats['final_price'] - entry_price) / entry_price) * 100
+        stats['current_pct_change'] = round(current_pct_change, 2)
+    
+    # Calculate days in trade
+    if not future_data.index.empty:
+        stats['days_in_trade'] = (future_data.index[-1] - future_data.index[0]).days
+    
+    # Process each candle in the future data to see when levels were hit
+    hit_sl = False
+    hit_tp1 = False
+    hit_tp2 = False
+    
+    max_profit_pct = 0
+    max_loss_pct = 0
+    
+    for idx, row in future_data.iterrows():
+        # For Long positions:
+        if signal == "Long":
+            # Check for highest profit point using the High price
+            highest_profit_pct = ((row['High'] - entry_price) / entry_price) * 100
+            # Check for lowest loss point using the Low price
+            lowest_loss_pct = ((row['Low'] - entry_price) / entry_price) * 100
+            
+            # Update max profit/loss
+            max_profit_pct = max(max_profit_pct, highest_profit_pct)
+            max_loss_pct = min(max_loss_pct, lowest_loss_pct)
+            
+            # Check if SL was hit (long: price went below SL)
+            if not hit_sl and row['Low'] <= sl_price:
+                hit_sl = True
+                stats['hit_sl'] = True
+                stats['hit_sl_date'] = idx
+            
+            # Check if TP1 was hit (long: price went above TP1)
+            if not hit_tp1 and tp1_price is not None and row['High'] >= tp1_price:
+                hit_tp1 = True
+                stats['hit_tp1'] = True
+                stats['hit_tp1_date'] = idx
+            
+            # Check if TP2 was hit (long: price went above TP2)
+            if not hit_tp2 and tp2_price is not None and row['High'] >= tp2_price:
+                hit_tp2 = True
+                stats['hit_tp2'] = True
+                stats['hit_tp2_date'] = idx
+                
+        else:  # Short position
+            # Check for highest profit point using the Low price (profit increases as price decreases)
+            highest_profit_pct = ((entry_price - row['Low']) / entry_price) * 100
+            # Check for highest loss point using the High price (loss increases as price increases)
+            lowest_loss_pct = ((entry_price - row['High']) / entry_price) * 100
+            
+            # Update max profit/loss
+            max_profit_pct = max(max_profit_pct, highest_profit_pct)
+            max_loss_pct = min(max_loss_pct, lowest_loss_pct)
+            
+            # Check if SL was hit (short: price went above SL)
+            if not hit_sl and row['High'] >= sl_price:
+                hit_sl = True
+                stats['hit_sl'] = True
+                stats['hit_sl_date'] = idx
+            
+            # Check if TP1 was hit (short: price went below TP1)
+            if not hit_tp1 and tp1_price is not None and row['Low'] <= tp1_price:
+                hit_tp1 = True
+                stats['hit_tp1'] = True
+                stats['hit_tp1_date'] = idx
+            
+            # Check if TP2 was hit (short: price went below TP2)
+            if not hit_tp2 and tp2_price is not None and row['Low'] <= tp2_price:
+                hit_tp2 = True
+                stats['hit_tp2'] = True
+                stats['hit_tp2_date'] = idx
+    
+    stats['max_profit_pct'] = round(max_profit_pct, 2)
+    stats['max_loss_pct'] = round(max_loss_pct, 2)
+    
+    # Determine final status
+    if hit_sl:
+        stats['status'] = 'stopped_out'
+    elif hit_tp2:
+        stats['status'] = 'hit_tp2'
+    elif hit_tp1:
+        stats['status'] = 'hit_tp1'
+    else:
+        stats['status'] = 'still_running'
+    
+    print(f"  Backtest Stats: Status={stats['status']}, TP1 Hit={stats['hit_tp1']}, TP2 Hit={stats['hit_tp2']}, SL Hit={stats['hit_sl']}")
+    print(f"  Max Profit: {stats['max_profit_pct']}%, Max Loss: {stats['max_loss_pct']}%")
+    
+    return stats
 
 # --- <<< NEW FUNCTION: Trade Recommendation Generator >>> ---
 def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0, demo_account_size=10000):
@@ -1425,24 +1604,93 @@ def index():
                     if d_start >= d_end: error = "Start date must be before end date."; raise ValueError(error)
                 except ValueError as ve: error = error or f"Invalid date format/order: {ve}"; raise ValueError(error)
                 
+                # Handle backtest mode in multi-stock analysis
+                if is_backtest:
+                    analysis_date = form_values['analysis_date']; check_date = form_values['check_date']
+                    if not analysis_date: error = "Backtest 'Analysis Date' is required."; raise ValueError(error)
+                    if not check_date: error = "Backtest 'Check Date' is required."; raise ValueError(error)
+                    try: # Validate date order for backtest
+                        d_start=datetime.datetime.strptime(start_date, '%Y-%m-%d'); d_analysis=datetime.datetime.strptime(analysis_date, '%Y-%m-%d'); d_check=datetime.datetime.strptime(check_date, '%Y-%m-%d')
+                        if not (d_start < d_analysis < d_check): error = "For Backtest, dates must be in order: Start Date < Analysis Date < Check Date."; raise ValueError(error)
+                    except ValueError as ve: error = error or f"Invalid date format/order: {ve}"; raise ValueError(error)
+                
                 # Process each stock in the list
                 multi_stock_results = []
+                
+                # Backtest summary statistics
+                backtest_summary = {
+                    'total_trades': 0,
+                    'hit_tp1': 0,
+                    'hit_tp2': 0,
+                    'hit_sl': 0,
+                    'still_running': 0,
+                    'winning_trades': 0,
+                    'losing_trades': 0,
+                    'win_rate': 0,
+                    'avg_win_pct': 0,
+                    'avg_loss_pct': 0,
+                    'total_win_pct': 0,
+                    'total_loss_pct': 0
+                }
+                
                 for current_ticker in stock_list:
                     print(f"Processing stock: {current_ticker}")
                     try:
-                        # Run analysis for this stock
-                        current_fig, current_analysis_summary = run_analysis(current_ticker, start_date, end_date, interval)
-                        
-                        # Get trade recommendation
-                        current_stock_data = get_stock_data(current_ticker, start_date, end_date, interval)
+                        current_fig = None
+                        current_analysis_summary = None
+                        current_backtest_stats = None
                         current_trade_recommendation = None
-                        if current_stock_data is not None and not current_stock_data.empty and current_analysis_summary and not current_analysis_summary.get('error'):
-                            current_trade_recommendation = generate_trade_recommendation(
-                                current_analysis_summary,
-                                current_stock_data,
-                                risk_percent=float(risk_percent_str),
-                                demo_account_size=float(demo_account_size_str)
-                            )
+                        
+                        # Run analysis based on mode (standard or backtest)
+                        if is_backtest:
+                            print(f"Running Backtest for {current_ticker}: Start={start_date}, Analysis={analysis_date}, Check={check_date}")
+                            current_fig, current_analysis_summary = run_backtest_simulation(current_ticker, start_date, analysis_date, check_date, interval)
+                            
+                            # Extract trade recommendation and backtest stats
+                            if current_analysis_summary:
+                                if 'trade_recommendation' in current_analysis_summary:
+                                    current_trade_recommendation = current_analysis_summary['trade_recommendation']
+                                
+                                if 'backtest_stats' in current_analysis_summary:
+                                    current_backtest_stats = current_analysis_summary['backtest_stats']
+                                    
+                                    # Update backtest summary statistics
+                                    if current_backtest_stats and current_trade_recommendation and current_trade_recommendation.get('status') == 'Trade Found':
+                                        backtest_summary['total_trades'] += 1
+                                        
+                                        if current_backtest_stats['hit_tp1']:
+                                            backtest_summary['hit_tp1'] += 1
+                                        
+                                        if current_backtest_stats['hit_tp2']:
+                                            backtest_summary['hit_tp2'] += 1
+                                        
+                                        if current_backtest_stats['hit_sl']:
+                                            backtest_summary['hit_sl'] += 1
+                                            backtest_summary['losing_trades'] += 1
+                                        elif current_backtest_stats['hit_tp1'] or current_backtest_stats['hit_tp2']:
+                                            backtest_summary['winning_trades'] += 1
+                                        
+                                        if current_backtest_stats['status'] == 'still_running':
+                                            backtest_summary['still_running'] += 1
+                                        
+                                        # Add to profit/loss calculations
+                                        if current_backtest_stats['current_pct_change'] > 0:
+                                            backtest_summary['total_win_pct'] += current_backtest_stats['current_pct_change']
+                                        else:
+                                            backtest_summary['total_loss_pct'] += current_backtest_stats['current_pct_change']
+                        else:
+                            # Standard analysis
+                            current_fig, current_analysis_summary = run_analysis(current_ticker, start_date, end_date, interval)
+                            
+                            # Get trade recommendation
+                            current_stock_data = get_stock_data(current_ticker, start_date, end_date, interval)
+                            if current_stock_data is not None and not current_stock_data.empty and current_analysis_summary and not current_analysis_summary.get('error'):
+                                current_trade_recommendation = generate_trade_recommendation(
+                                    current_analysis_summary,
+                                    current_stock_data,
+                                    risk_percent=float(risk_percent_str),
+                                    demo_account_size=float(demo_account_size_str)
+                                )
                         
                         # Extract wave information and other useful data
                         wave_info = {}
@@ -1481,16 +1729,37 @@ def index():
                             'analysis_summary_data': current_analysis_summary,
                             'trade_recommendation_data': current_trade_recommendation,
                             'wave_info': wave_info,
+                            'backtest_stats': current_backtest_stats,
                             'error': current_analysis_summary.get('error') if current_analysis_summary else 'Analysis failed'
                         })
                     except Exception as stock_err:
                         print(f"Error processing {current_ticker}: {stock_err}")
+                        traceback.print_exc()
                         multi_stock_results.append({
                             'ticker': current_ticker,
                             'analysis_summary_data': None,
                             'trade_recommendation_data': None,
+                            'backtest_stats': None,
                             'error': f"Error: {stock_err}"
                         })
+                
+                # Calculate overall backtest statistics if we're in backtest mode
+                if is_backtest and backtest_summary['total_trades'] > 0:
+                    # Calculate win rate
+                    total_decided = backtest_summary['winning_trades'] + backtest_summary['losing_trades']
+                    if total_decided > 0:
+                        backtest_summary['win_rate'] = round((backtest_summary['winning_trades'] / total_decided) * 100, 2)
+                    
+                    # Calculate average win/loss percentages
+                    if backtest_summary['winning_trades'] > 0:
+                        backtest_summary['avg_win_pct'] = round(backtest_summary['total_win_pct'] / backtest_summary['winning_trades'], 2)
+                    
+                    if backtest_summary['losing_trades'] > 0:
+                        backtest_summary['avg_loss_pct'] = round(backtest_summary['total_loss_pct'] / backtest_summary['losing_trades'], 2)
+                    
+                    # Add the summary to each result item to make it available in the template
+                    for result in multi_stock_results:
+                        result['backtest_summary'] = backtest_summary
                 
                 # For display in the UI, we'll still show the first stock's chart if available
                 if stock_list and multi_stock_results:
@@ -1498,7 +1767,10 @@ def index():
                     if 'analysis_summary_data' in first_result and first_result['analysis_summary_data']:
                         analysis_summary_data = first_result['analysis_summary_data']
                         # Re-run analysis for the first stock to get the plot
-                        fig, _ = run_analysis(stock_list[0], start_date, end_date, interval)
+                        if is_backtest:
+                            fig, _ = run_backtest_simulation(stock_list[0], start_date, analysis_date, check_date, interval)
+                        else:
+                            fig, _ = run_analysis(stock_list[0], start_date, end_date, interval)
                         trade_recommendation_data = first_result.get('trade_recommendation_data')
                         
                 # Save multi_stock_results for future requests
@@ -1507,7 +1779,9 @@ def index():
                         'ticker': result['ticker'],
                         'error': result.get('error', ''),
                         'trade_recommendation_data': result.get('trade_recommendation_data'),
-                        'wave_info': result.get('wave_info', {})
+                        'wave_info': result.get('wave_info', {}),
+                        'backtest_stats': result.get('backtest_stats'),
+                        'backtest_summary': backtest_summary if is_backtest else None
                     } for result in multi_stock_results])
                     form_values['multi_stock_data'] = multi_stock_data_json
                 except Exception as e:

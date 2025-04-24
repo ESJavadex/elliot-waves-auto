@@ -31,6 +31,18 @@
             --transition-fast: all 0.2s ease;
             --transition-normal: all 0.3s ease;
             --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            --primary-color: #4a6fa5;
+            --secondary-color: #166088;
+            --accent-color: #33a6b8;
+            --light-color: #e8f1f5;
+            --dark-color: #1e3d58;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --info-color: #17a2b8;
+            --panel-bg: #f8f9fa;
+            --panel-border: #dee2e6;
+            --panel-shadow: rgba(0,0,0,0.1);
         }
 
         /* Base Styles */
@@ -342,6 +354,145 @@
             font-weight: bold;
         }
 
+        /* Additional styles for backtest statistics */
+        .backtest-stats-section, .backtest-summary-section {
+            background-color: var(--bg-secondary);
+            border-radius: 0.5rem;
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border: 1px solid var(--border-color);
+        }
+        
+        .backtest-stats-grid, .backtest-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            padding: 0.75rem;
+            background-color: var(--bg-element);
+            border-radius: 0.25rem;
+            border-left: 3px solid var(--border-color);
+        }
+        
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+        
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+        
+        .stat-date {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+        
+        .stat-pct {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+        
+        /* Status-specific styles */
+        .stat-item.positive, .stat-item.hit {
+            border-left-color: var(--green-profit);
+        }
+        
+        .stat-item.negative, .stat-item.stopped-out {
+            border-left-color: var(--red-loss);
+        }
+        
+        .stat-item.status-hit_tp1 {
+            border-left-color: var(--accent-blue);
+        }
+        
+        .stat-item.status-hit_tp2 {
+            border-left-color: var(--accent-green);
+        }
+        
+        .stat-item.status-stopped_out {
+            border-left-color: var(--accent-red);
+        }
+        
+        .stat-item.status-still_running {
+            border-left-color: var(--accent-yellow);
+        }
+
+        /* Multi-stock table styles */
+        .status-cell {
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .status-running {
+            color: var(--info-color);
+            background-color: rgba(23, 162, 184, 0.1);
+        }
+        
+        .status-tp1_hit {
+            color: var(--success-color);
+            background-color: rgba(40, 167, 69, 0.1);
+        }
+        
+        .status-tp2_hit {
+            color: var(--success-color);
+            background-color: rgba(40, 167, 69, 0.2);
+        }
+        
+        .status-sl_hit {
+            color: var(--danger-color);
+            background-color: rgba(220, 53, 69, 0.1);
+        }
+        
+        .status-unknown {
+            color: var(--dark-color);
+            background-color: rgba(108, 117, 125, 0.1);
+        }
+        
+        .tp1-reached, .tp2-reached {
+            background-color: rgba(40, 167, 69, 0.1);
+            border-left: 3px solid var(--success-color);
+        }
+        
+        .sl-reached {
+            background-color: rgba(220, 53, 69, 0.1);
+            border-left: 3px solid var(--danger-color);
+        }
+        
+        /* Backtest stats styles */
+        /* ... existing code ... */
+
+        .status-still_running {
+            color: var(--info-color);
+            background-color: rgba(23, 162, 184, 0.1);
+        }
+        
+        .status-hit_tp1 {
+            color: var(--success-color);
+            background-color: rgba(40, 167, 69, 0.1);
+        }
+        
+        .status-hit_tp2 {
+            color: var(--success-color);
+            background-color: rgba(40, 167, 69, 0.2);
+        }
+        
+        .status-stopped_out {
+            color: var(--danger-color);
+            background-color: rgba(220, 53, 69, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -478,25 +629,28 @@
                 <table class="stock-results-table">
                     <thead>
                         <tr>
-                            <th class="sortable sort-asc" data-sort="ticker">Ticker</th>
+                            <th class="sortable" data-sort="ticker">Ticker</th>
                             <th class="sortable" data-sort="wave">Wave</th>
                             <th class="sortable" data-sort="signal">Signal</th>
-                            <th class="sortable" data-sort="entry">Entry Price</th>
-                            <th class="sortable" data-sort="sl">Stop Loss</th>
+                            <th class="sortable" data-sort="entry">Entry</th>
+                            <th class="sortable" data-sort="sl">SL</th>
                             <th class="sortable" data-sort="tp1">TP1</th>
                             <th class="sortable" data-sort="tp2">TP2</th>
                             <th class="sortable" data-sort="rrr">R:R</th>
-                            <th class="sortable" data-sort="pct_change">% Change</th>
+                            <th class="sortable" data-sort="pct-change">% Change</th>
+                            {% if form_values.run_backtest == 'true' %}
+                            <th class="sortable" data-sort="status">Status</th>
+                            <th class="sortable" data-sort="days">Days</th>
+                            {% endif %}
                             <th class="sortable" data-sort="score">Score</th>
-                            <th class="sortable" data-sort="confidence">Confidence</th>
+                            <th class="sortable" data-sort="confidence">Conf.</th>
                             <th class="sortable" data-sort="status">Status</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for result in multi_stock_results %}
-                        <tr class="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' %}trade-found{% else %}no-trade{% endif %}"
-                            data-has-entry="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' %}true{% else %}false{% endif %}"
+                        <tr data-has-entry="{{ 'true' if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'false' }}"
                             data-ticker="{{ result.ticker }}"
                             data-wave="{{ result.wave_info.current_wave if result.wave_info else 'N/A' }}"
                             data-signal="{{ result.trade_recommendation_data.signal if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}"
@@ -505,7 +659,11 @@
                             data-tp1="{{ result.trade_recommendation_data.tp1_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
                             data-tp2="{{ result.trade_recommendation_data.tp2_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
                             data-rrr="{{ result.trade_recommendation_data.tp1_rrr if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.tp1_rrr is not none else '' }}"
-                            data-pct-change="{{ result.trade_recommendation_data.pct_change if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
+                            data-pct-change="{{ result.trade_recommendation_data.pct_change if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else result.backtest_stats.current_pct_change if result.backtest_stats else '' }}"
+                            {% if form_values.run_backtest == 'true' and result.backtest_stats %}
+                            data-status="{{ result.backtest_stats.status }}"
+                            data-days="{{ result.backtest_stats.days_in_trade }}"
+                            {% endif %}
                             data-score="{{ result.wave_info.score if result.wave_info else '' }}"
                             data-confidence="{{ result.trade_recommendation_data.confidence_score if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
                             data-status="{{ result.trade_recommendation_data.status if result.trade_recommendation_data else result.error }}"
@@ -520,25 +678,39 @@
                             </td>
                             <td>{{ result.trade_recommendation_data.signal if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
                             <td>{{ '%.2f'|format(result.trade_recommendation_data.entry_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
-                            <td class="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.sl_reached %}sl-reached{% endif %}">
+                            <td class="{% if result.backtest_stats and result.backtest_stats.hit_sl %}sl-reached{% endif %}">
                                 {{ '%.2f'|format(result.trade_recommendation_data.stop_loss_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}
                             </td>
-                            <td class="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.tp1_reached %}tp1-reached{% endif %}">
+                            <td class="{% if result.backtest_stats and result.backtest_stats.hit_tp1 %}tp1-reached{% endif %}">
                                 {{ '%.2f'|format(result.trade_recommendation_data.tp1_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}
                             </td>
-                            <td class="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.tp2_reached %}tp2-reached{% endif %}">
+                            <td class="{% if result.backtest_stats and result.backtest_stats.hit_tp2 %}tp2-reached{% endif %}">
                                 {{ '%.2f'|format(result.trade_recommendation_data.tp2_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}
                             </td>
                             <td>{{ '%.2f'|format(result.trade_recommendation_data.tp1_rrr) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.tp1_rrr is not none else 'N/A' }}</td>
-                            <td class="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' %}{% if result.trade_recommendation_data.pct_change > 0 %}positive-change{% else %}negative-change{% endif %}{% endif %}">
-                                {{ '%.2f'|format(result.trade_recommendation_data.pct_change) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}%
+                            <td class="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' %}{% if result.trade_recommendation_data.pct_change > 0 %}positive-change{% else %}negative-change{% endif %}{% elif result.backtest_stats %}{% if result.backtest_stats.current_pct_change > 0 %}positive-change{% else %}negative-change{% endif %}{% endif %}">
+                                {% if result.backtest_stats %}
+                                    {{ '%.2f'|format(result.backtest_stats.current_pct_change) }}%
+                                {% elif result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' %}
+                                    {{ '%.2f'|format(result.trade_recommendation_data.pct_change) }}%
+                                {% else %}
+                                    N/A
+                                {% endif %}
                             </td>
+                            {% if form_values.run_backtest == 'true' %}
+                            <td class="status-cell status-{{ result.backtest_stats.status if result.backtest_stats else 'unknown' }}">
+                                {{ result.backtest_stats.status|replace('_', ' ')|title if result.backtest_stats else 'N/A' }}
+                            </td>
+                            <td>
+                                {{ result.backtest_stats.days_in_trade if result.backtest_stats else 'N/A' }}
+                            </td>
+                            {% endif %}
                             <td>{{ result.wave_info.score if result.wave_info else 'N/A' }}</td>
                             <td>{{ result.trade_recommendation_data.confidence_score if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
                             <td>{{ result.trade_recommendation_data.status if result.trade_recommendation_data else result.error }}</td>
                             <td>
                                 <form method="POST" class="show-plot-form">
-                                    <input type="hidden" name="analysis_mode" value="single"><input type="hidden" name="ticker" value="{{ result.ticker }}"><input type="hidden" name="start_date" value="{{ form_values.start_date }}"><input type="hidden" name="end_date" value="{{ form_values.end_date }}"><input type="hidden" name="interval" value="{{ form_values.interval }}"><input type="hidden" name="risk_percent" value="{{ form_values.risk_percent }}"><input type="hidden" name="demo_account_size" value="{{ form_values.demo_account_size }}"><input type="hidden" name="show_trade_on_plot" value="true"><input type="hidden" name="from_multi_stock" value="true"><input type="hidden" name="original_stock_list" value="{{ form_values.stock_list }}"><button type="submit" class="show-plot-btn">Plot</button>
+                                    <input type="hidden" name="analysis_mode" value="single"><input type="hidden" name="ticker" value="{{ result.ticker }}"><input type="hidden" name="start_date" value="{{ form_values.start_date }}"><input type="hidden" name="end_date" value="{{ form_values.end_date }}"><input type="hidden" name="interval" value="{{ form_values.interval }}"><input type="hidden" name="risk_percent" value="{{ form_values.risk_percent }}"><input type="hidden" name="demo_account_size" value="{{ form_values.demo_account_size }}"><input type="hidden" name="show_trade_on_plot" value="true"><input type="hidden" name="from_multi_stock" value="true"><input type="hidden" name="original_stock_list" value="{{ form_values.stock_list }}">{% if form_values.run_backtest == 'true' %}<input type="hidden" name="run_backtest" value="true"><input type="hidden" name="analysis_date" value="{{ form_values.analysis_date }}"><input type="hidden" name="check_date" value="{{ form_values.check_date }}">{% endif %}<button type="submit" class="show-plot-btn">Plot</button>
                                 </form>
                             </td>
                         </tr>
@@ -564,6 +736,106 @@
             <div class="plot-container">{{ plot_html | safe }}</div>
         {% elif request.method == 'POST' and not error and not multi_stock_results %}
              <p style="text-align:center; color: #999; margin: 40px 0;">No plot generated. Check parameters or console logs.</p>
+        {% endif %}
+
+        {% if form_values.run_backtest == 'true' and analysis_summary_data and analysis_summary_data.backtest_stats %}
+            <!-- Single Stock Backtest Statistics -->
+            <div class="backtest-stats-section">
+                <h3>Backtest Results</h3>
+                <div class="backtest-stats-grid">
+                    <div class="stat-item status-{{ analysis_summary_data.backtest_stats.status }}">
+                        <span class="stat-label">Status:</span>
+                        <span class="stat-value">{{ analysis_summary_data.backtest_stats.status | replace('_', ' ') | title }}</span>
+                    </div>
+                    <div class="stat-item {% if analysis_summary_data.backtest_stats.hit_tp1 %}hit{% endif %}">
+                        <span class="stat-label">TP1 Hit:</span>
+                        <span class="stat-value">{{ "Yes" if analysis_summary_data.backtest_stats.hit_tp1 else "No" }}</span>
+                        {% if analysis_summary_data.backtest_stats.hit_tp1_date %}
+                        <span class="stat-date">{{ analysis_summary_data.backtest_stats.hit_tp1_date.strftime('%Y-%m-%d') }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="stat-item {% if analysis_summary_data.backtest_stats.hit_tp2 %}hit{% endif %}">
+                        <span class="stat-label">TP2 Hit:</span>
+                        <span class="stat-value">{{ "Yes" if analysis_summary_data.backtest_stats.hit_tp2 else "No" }}</span>
+                        {% if analysis_summary_data.backtest_stats.hit_tp2_date %}
+                        <span class="stat-date">{{ analysis_summary_data.backtest_stats.hit_tp2_date.strftime('%Y-%m-%d') }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="stat-item {% if analysis_summary_data.backtest_stats.hit_sl %}stopped-out{% endif %}">
+                        <span class="stat-label">SL Hit:</span>
+                        <span class="stat-value">{{ "Yes" if analysis_summary_data.backtest_stats.hit_sl else "No" }}</span>
+                        {% if analysis_summary_data.backtest_stats.hit_sl_date %}
+                        <span class="stat-date">{{ analysis_summary_data.backtest_stats.hit_sl_date.strftime('%Y-%m-%d') }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Days in Trade:</span>
+                        <span class="stat-value">{{ analysis_summary_data.backtest_stats.days_in_trade }}</span>
+                    </div>
+                    <div class="stat-item {% if analysis_summary_data.backtest_stats.current_pct_change > 0 %}positive{% else %}negative{% endif %}">
+                        <span class="stat-label">Current Change:</span>
+                        <span class="stat-value">{{ analysis_summary_data.backtest_stats.current_pct_change }}%</span>
+                    </div>
+                    <div class="stat-item positive">
+                        <span class="stat-label">Max Profit:</span>
+                        <span class="stat-value">{{ analysis_summary_data.backtest_stats.max_profit_pct }}%</span>
+                    </div>
+                    <div class="stat-item negative">
+                        <span class="stat-label">Max Loss:</span>
+                        <span class="stat-value">{{ analysis_summary_data.backtest_stats.max_loss_pct }}%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Final Price:</span>
+                        <span class="stat-value">{{ analysis_summary_data.backtest_stats.final_price }}</span>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+        
+        {% if multi_stock_results and form_values.run_backtest == 'true' and multi_stock_results[0].backtest_summary %}
+            <!-- Multi-Stock Backtest Summary Statistics -->
+            {% set backtest_summary = multi_stock_results[0].backtest_summary %}
+            <div class="backtest-summary-section">
+                <h3>Multi-Stock Backtest Summary</h3>
+                <div class="backtest-summary-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Total Trades:</span>
+                        <span class="stat-value">{{ backtest_summary.total_trades }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Win Rate:</span>
+                        <span class="stat-value">{{ backtest_summary.win_rate }}%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">TP1 Hits:</span>
+                        <span class="stat-value">{{ backtest_summary.hit_tp1 }}</span>
+                        <span class="stat-pct">({{ (backtest_summary.hit_tp1 / backtest_summary.total_trades * 100) | round(1) }}%)</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">TP2 Hits:</span>
+                        <span class="stat-value">{{ backtest_summary.hit_tp2 }}</span>
+                        <span class="stat-pct">({{ (backtest_summary.hit_tp2 / backtest_summary.total_trades * 100) | round(1) }}%)</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">SL Hits:</span>
+                        <span class="stat-value">{{ backtest_summary.hit_sl }}</span>
+                        <span class="stat-pct">({{ (backtest_summary.hit_sl / backtest_summary.total_trades * 100) | round(1) }}%)</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Still Running:</span>
+                        <span class="stat-value">{{ backtest_summary.still_running }}</span>
+                        <span class="stat-pct">({{ (backtest_summary.still_running / backtest_summary.total_trades * 100) | round(1) }}%)</span>
+                    </div>
+                    <div class="stat-item positive">
+                        <span class="stat-label">Avg Winning %:</span>
+                        <span class="stat-value">{{ backtest_summary.avg_win_pct }}%</span>
+                    </div>
+                    <div class="stat-item negative">
+                        <span class="stat-label">Avg Losing %:</span>
+                        <span class="stat-value">{{ backtest_summary.avg_loss_pct }}%</span>
+                    </div>
+                </div>
+            </div>
         {% endif %}
 
         {% if trade_recommendation_data %}
@@ -665,9 +937,9 @@
             const presetButtons = document.querySelectorAll('.preset-btn');
             const stockListInput = document.getElementById('stock_list');
             const analysisModeSelect = document.getElementById('analysis_mode');
-            const toggleTableBtn = document.getElementById('toggle-table-btn');
+            const toggleTableBtn = document.querySelector('.toggle-table-btn');
             const multiStockResultsDiv = document.querySelector('.multi-stock-results');
-            const visibleCountSpan = document.getElementById('visible-stocks-count');
+            const visibleCountSpan = document.querySelector('#visible-stocks-count');
             const singleTickerGroup = document.getElementById('single-ticker-group');
             const multiStockInputsGroup = document.getElementById('multi-stock-inputs');
             const singleTickerInput = document.getElementById('ticker');
@@ -825,68 +1097,70 @@
                  toggleTableBtn.querySelector('.btn-text').textContent = isCollapsed ? 'Show Table' : 'Hide Table';
                  const icon = toggleTableBtn.querySelector('.icon');
                  if (icon) icon.textContent = isCollapsed ? '►' : '▼';
-             }
-
-            function updateSortClasses(column, direction) {
-                sortableHeaders.forEach(h => {
-                    h.classList.remove('sort-asc', 'sort-desc');
-                    if (h.getAttribute('data-sort') === column) {
-                        h.classList.add(direction === 'asc' ? 'sort-asc' : 'sort-desc');
-                    }
-                });
             }
 
             function applyFilter() {
-                 if (!hideNoEntryCheckbox) return;
+                if (!stockRows.length || !hideNoEntryCheckbox) return;
+                
                 const hideNoEntry = hideNoEntryCheckbox.checked;
+                
                 stockRows.forEach(row => {
                     const hasEntry = row.getAttribute('data-has-entry') === 'true';
-                    row.classList.toggle('hidden', !hasEntry && hideNoEntry);
+                    row.style.display = (hideNoEntry && !hasEntry) ? 'none' : '';
                 });
+                
+                sortTable(currentSortColumn, currentSortDirection);
+            }
+            
+            function updateVisibleCount() {
+                if (!visibleCountSpan || !stockRows.length) return;
+                
+                const visibleRows = stockRows.filter(row => row.style.display !== 'none').length;
+                const totalRows = stockRows.length;
+                
+                visibleCountSpan.textContent = `Showing ${visibleRows} of ${totalRows} stocks`;
             }
 
             function sortTable(column, direction) {
-                if (!stockTableBody) return;
-                const numericColumns = ['entry', 'sl', 'tp1', 'rrr', 'score', 'confidence'];
-                const isNumeric = numericColumns.includes(column);
+                if (!stockRows.length) return;
+                
+                const multiplier = direction === 'asc' ? 1 : -1;
+                
+                // Sort the rows
                 stockRows.sort((a, b) => {
-                    let aValue = a.getAttribute(`data-${column}`) || '';
-                    let bValue = b.getAttribute(`data-${column}`) || '';
-                    let aIsNA = aValue === '' || aValue.toLowerCase() === 'n/a';
-                    let bIsNA = bValue === '' || bValue.toLowerCase() === 'n/a';
-                    if (isNumeric) {
-                         const valA = !aIsNA ? parseFloat(aValue) : (direction === 'asc' ? Infinity : -Infinity);
-                         const valB = !bIsNA ? parseFloat(bValue) : (direction === 'asc' ? Infinity : -Infinity);
-                         if (isNaN(valA) && isNaN(valB)) return 0;
-                         if (isNaN(valA)) return 1;
-                         if (isNaN(valB)) return -1;
-                         aValue = valA;
-                         bValue = valB;
-                    } else {
-                         aValue = aValue.toLowerCase();
-                         bValue = bValue.toLowerCase();
-                         aIsNA = aValue === '' || aValue === 'n/a';
-                         bIsNA = bValue === '' || bValue === 'n/a';
-                         if (aIsNA && bIsNA) return 0;
-                         if (aIsNA) return 1;
-                         if (bIsNA) return -1;
+                    let aValue = a.getAttribute(`data-${column}`);
+                    let bValue = b.getAttribute(`data-${column}`);
+                    
+                    // Handle numeric columns
+                    if (['entry', 'sl', 'tp1', 'tp2', 'rrr', 'pct-change', 'score', 'confidence', 'days'].includes(column)) {
+                        aValue = parseFloat(aValue) || 0;
+                        bValue = parseFloat(bValue) || 0;
+                        return (aValue - bValue) * multiplier;
                     }
-                    if (aValue < bValue) return direction === 'asc' ? -1 : 1;
-                    if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+                    
+                    // Handle text columns (case-insensitive)
+                    aValue = (aValue || '').toLowerCase();
+                    bValue = (bValue || '').toLowerCase();
+                    
+                    if (aValue < bValue) return -1 * multiplier;
+                    if (aValue > bValue) return 1 * multiplier;
                     return 0;
                 });
-                stockRows.forEach(row => stockTableBody.appendChild(row));
+                
+                // Reorder the DOM
+                const fragment = document.createDocumentFragment();
+                stockRows.forEach(row => fragment.appendChild(row));
+                stockTableBody.appendChild(fragment);
             }
-
-            function updateVisibleCount() {
-                 if (!visibleCountSpan) return;
-                const visibleRows = stockRows.filter(row => !row.classList.contains('hidden'));
-                const totalRows = stockRows.length;
-                 if (totalRows === 0) {
-                    visibleCountSpan.textContent = "No stocks analysed.";
-                 } else {
-                     visibleCountSpan.textContent = `Showing ${visibleRows.length} of ${totalRows} stocks`;
-                 }
+            
+            function updateSortClasses(column, direction) {
+                sortableHeaders.forEach(header => {
+                    const headerColumn = header.getAttribute('data-sort');
+                    header.classList.remove('sort-asc', 'sort-desc');
+                    if (headerColumn === column) {
+                        header.classList.add(`sort-${direction}`);
+                    }
+                });
             }
         });
 
