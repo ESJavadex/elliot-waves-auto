@@ -313,6 +313,35 @@
         footer a { color: var(--text-secondary); text-decoration: none; transition: color var(--transition-fast); }
         footer a:hover { color: var(--accent-primary); text-decoration: underline; }
 
+        /* Trading level reached styles */
+        .sl-reached {
+            background-color: rgba(255, 0, 0, 0.2);
+            color: #ff0000;
+            font-weight: bold;
+        }
+        
+        .tp1-reached {
+            background-color: rgba(0, 255, 0, 0.2);
+            color: #00aa00;
+            font-weight: bold;
+        }
+        
+        .tp2-reached {
+            background-color: rgba(0, 128, 0, 0.2);
+            color: #006600;
+            font-weight: bold;
+        }
+        
+        .positive-change {
+            color: #00aa00;
+            font-weight: bold;
+        }
+        
+        .negative-change {
+            color: #ff0000;
+            font-weight: bold;
+        }
+
     </style>
 </head>
 <body>
@@ -455,7 +484,9 @@
                             <th class="sortable" data-sort="entry">Entry Price</th>
                             <th class="sortable" data-sort="sl">Stop Loss</th>
                             <th class="sortable" data-sort="tp1">TP1</th>
+                            <th class="sortable" data-sort="tp2">TP2</th>
                             <th class="sortable" data-sort="rrr">R:R</th>
+                            <th class="sortable" data-sort="pct_change">% Change</th>
                             <th class="sortable" data-sort="score">Score</th>
                             <th class="sortable" data-sort="confidence">Confidence</th>
                             <th class="sortable" data-sort="status">Status</th>
@@ -472,7 +503,9 @@
                             data-entry="{{ result.trade_recommendation_data.entry_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
                             data-sl="{{ result.trade_recommendation_data.stop_loss_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
                             data-tp1="{{ result.trade_recommendation_data.tp1_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
+                            data-tp2="{{ result.trade_recommendation_data.tp2_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
                             data-rrr="{{ result.trade_recommendation_data.tp1_rrr if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.tp1_rrr is not none else '' }}"
+                            data-pct-change="{{ result.trade_recommendation_data.pct_change if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
                             data-score="{{ result.wave_info.score if result.wave_info else '' }}"
                             data-confidence="{{ result.trade_recommendation_data.confidence_score if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
                             data-status="{{ result.trade_recommendation_data.status if result.trade_recommendation_data else result.error }}"
@@ -487,9 +520,19 @@
                             </td>
                             <td>{{ result.trade_recommendation_data.signal if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
                             <td>{{ '%.2f'|format(result.trade_recommendation_data.entry_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
-                            <td>{{ '%.2f'|format(result.trade_recommendation_data.stop_loss_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
-                            <td>{{ '%.2f'|format(result.trade_recommendation_data.tp1_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
+                            <td class="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.sl_reached %}sl-reached{% endif %}">
+                                {{ '%.2f'|format(result.trade_recommendation_data.stop_loss_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}
+                            </td>
+                            <td class="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.tp1_reached %}tp1-reached{% endif %}">
+                                {{ '%.2f'|format(result.trade_recommendation_data.tp1_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}
+                            </td>
+                            <td class="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.tp2_reached %}tp2-reached{% endif %}">
+                                {{ '%.2f'|format(result.trade_recommendation_data.tp2_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}
+                            </td>
                             <td>{{ '%.2f'|format(result.trade_recommendation_data.tp1_rrr) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.tp1_rrr is not none else 'N/A' }}</td>
+                            <td class="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' %}{% if result.trade_recommendation_data.pct_change > 0 %}positive-change{% else %}negative-change{% endif %}{% endif %}">
+                                {{ '%.2f'|format(result.trade_recommendation_data.pct_change) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}%
+                            </td>
                             <td>{{ result.wave_info.score if result.wave_info else 'N/A' }}</td>
                             <td>{{ result.trade_recommendation_data.confidence_score if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
                             <td>{{ result.trade_recommendation_data.status if result.trade_recommendation_data else result.error }}</td>

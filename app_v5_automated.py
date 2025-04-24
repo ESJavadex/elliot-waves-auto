@@ -1262,6 +1262,42 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
         'notes': f"Recommendation based on EW analysis ending {last_ew_point.name.strftime('%Y-%m-%d')} (Label {last_label}). Entry assumes execution at close of {last_point_overall.name.strftime('%Y-%m-%d')}."
     })
 
+    # Get the latest price to check if levels have been reached
+    latest_price = stock_data['Close'].iloc[-1]
+    
+    # Calculate percentage change since entry
+    pct_change = ((latest_price - entry_price) / entry_price) * 100
+
+    # Initialize level reached flags
+    tp1_reached = False
+    tp2_reached = False
+    sl_reached = False
+
+    # Check if levels have been reached
+    if signal == "Long":
+        if tp1_price is not None and latest_price >= tp1_price:
+            tp1_reached = True
+        if tp2_price is not None and latest_price >= tp2_price:
+            tp2_reached = True
+        if latest_price <= stop_loss_price:
+            sl_reached = True
+    else:  # Short
+        if tp1_price is not None and latest_price <= tp1_price:
+            tp1_reached = True
+        if tp2_price is not None and latest_price <= tp2_price:
+            tp2_reached = True
+        if latest_price >= stop_loss_price:
+            sl_reached = True
+
+    # Add level reached status and percentage change to recommendation
+    recommendation.update({
+        'tp1_reached': tp1_reached,
+        'tp2_reached': tp2_reached,
+        'sl_reached': sl_reached,
+        'pct_change': round(pct_change, 2),
+        'latest_price': round(latest_price, 4)
+    })
+
     print(f"  Result: {recommendation['status']} - {signal} signal found.")
     return recommendation
 
@@ -1619,6 +1655,32 @@ def index():
                             opacity=0.8
                         )
                         
+                        # Calculate percentage changes
+                        sl_pct = ((sl - entry) / entry) * 100
+                        tp1_pct = ((tp1 - entry) / entry) * 100 if tp1 is not None else None
+                        tp2_pct = ((tp2 - entry) / entry) * 100 if tp2 is not None else None
+                        
+                        # Set colors based on signal type (Long/Short)
+                        if signal == "Long":
+                            entry_color = "rgba(0, 150, 255, 0.9)"  # Blue for long entry
+                            sl_color = "rgba(255, 59, 59, 0.9)"     # Red for stop loss
+                            tp_color = "rgba(0, 180, 75, 0.9)"      # Green for take profit
+                        else:  # Short
+                            entry_color = "rgba(255, 59, 59, 0.9)"  # Red for short entry
+                            sl_color = "rgba(255, 59, 59, 0.9)"     # Red for stop loss
+                            tp_color = "rgba(0, 180, 75, 0.9)"      # Green for take profit
+                        
+                        # Add Entry Line with TradingView-style box
+                        fig.add_shape(
+                            type="line",
+                            x0=start_date,  # Start more to the right
+                            x1=extended_date,
+                            y0=entry,
+                            y1=entry,
+                            line=dict(color=entry_color, width=2),
+                            opacity=0.8
+                        )
+                        
                         fig.add_annotation(
                             x=extended_date,
                             y=entry,
@@ -1634,7 +1696,7 @@ def index():
                             opacity=0.9
                         )
                         
-                        # Add Stop Loss Line with TradingView-style box
+                        # Add SL Line with TradingView-style box
                         fig.add_shape(
                             type="line",
                             x0=start_date,  # Start more to the right
@@ -1648,7 +1710,7 @@ def index():
                         fig.add_annotation(
                             x=extended_date,
                             y=sl,
-                            text=f"SL: {sl:.4f}",
+                            text=f"SL: {sl:.4f} ({sl_pct:+.2f}%)",
                             showarrow=False,
                             xanchor="left",
                             yanchor="middle",
@@ -1660,17 +1722,18 @@ def index():
                             opacity=0.9
                         )
                         
-                        # Add risk zone shading between entry and stop loss
-                        fig.add_shape(
-                            type="rect",
-                            x0=start_date,  # Start more to the right
-                            x1=extended_date,
-                            y0=min(entry, sl),
-                            y1=max(entry, sl),
-                            fillcolor=risk_zone_color,
-                            line=dict(width=0),
-                            layer="below"
-                        )
+                        # Add risk zone shading between entry and SL
+                        if (signal == "Long" and sl < entry) or (signal == "Short" and sl > entry):
+                            fig.add_shape(
+                                type="rect",
+                                x0=start_date,  # Start more to the right
+                                x1=extended_date,
+                                y0=min(entry, sl),
+                                y1=max(entry, sl),
+                                fillcolor=risk_zone_color,
+                                line=dict(width=0),
+                                layer="below"
+                            )
                         
                         # Add TP1 Line with TradingView-style box
                         if tp1 is not None:
@@ -1687,7 +1750,7 @@ def index():
                             fig.add_annotation(
                                 x=extended_date,
                                 y=tp1,
-                                text=f"TP1: {tp1:.4f}",
+                                text=f"TP1: {tp1:.4f} ({tp1_pct:+.2f}%)",
                                 showarrow=False,
                                 xanchor="left",
                                 yanchor="middle",
@@ -1727,7 +1790,7 @@ def index():
                             fig.add_annotation(
                                 x=extended_date,
                                 y=tp2,
-                                text=f"TP2: {tp2:.4f}",
+                                text=f"TP2: {tp2:.4f} ({tp2_pct:+.2f}%)",
                                 showarrow=False,
                                 xanchor="left",
                                 yanchor="middle",
@@ -1739,7 +1802,7 @@ def index():
                                 opacity=0.9
                             )
                             
-                            # Add extended profit zone shading between TP1 and TP2 if both exist
+                            # Add profit zone shading between TP1 and TP2 (if both exist)
                             if tp1 is not None:
                                 if (signal == "Long" and tp2 > tp1) or (signal == "Short" and tp2 < tp1):
                                     fig.add_shape(
@@ -1765,55 +1828,156 @@ def index():
                             sl_color = "rgba(255, 59, 59, 0.9)"     # Red for stop loss
                             tp_color = "rgba(0, 180, 75, 0.9)"      # Green for take profit
                         
-                        # Add Entry Line - Simple horizontal line
-                        fig.add_hline(
-                            y=entry,
+                        # Calculate percentage changes
+                        sl_pct = ((sl - entry) / entry) * 100
+                        tp1_pct = ((tp1 - entry) / entry) * 100 if tp1 is not None else None
+                        tp2_pct = ((tp2 - entry) / entry) * 100 if tp2 is not None else None
+                        
+                        # Add Entry Line with TradingView-style box
+                        fig.add_shape(
+                            type="line",
+                            x0=start_date,  # Start more to the right
+                            x1=extended_date,
+                            y0=entry,
+                            y1=entry,
                             line=dict(color=entry_color, width=2),
-                            opacity=0.8,
-                            annotation_text=f"ENTRY {entry:.4f}",
-                            annotation_position="right",
-                            annotation_font_color="white",
-                            annotation_font_size=12,
-                            annotation_bgcolor=entry_color
+                            opacity=0.8
                         )
                         
-                        # Add Stop Loss Line
-                        fig.add_hline(
-                            y=sl,
+                        fig.add_annotation(
+                            x=extended_date,
+                            y=entry,
+                            text=f"Entry: {entry:.4f}",
+                            showarrow=False,
+                            xanchor="left",
+                            yanchor="middle",
+                            font=dict(color="white", size=11, family="Arial"),
+                            bgcolor=entry_color,
+                            bordercolor=entry_color,
+                            borderwidth=1,
+                            borderpad=4,
+                            opacity=0.9
+                        )
+                        
+                        # Add SL Line with TradingView-style box
+                        fig.add_shape(
+                            type="line",
+                            x0=start_date,  # Start more to the right
+                            x1=extended_date,
+                            y0=sl,
+                            y1=sl,
                             line=dict(color=sl_color, width=2),
-                            opacity=0.8,
-                            annotation_text=f"SL {sl:.4f}",
-                            annotation_position="right",
-                            annotation_font_color="white",
-                            annotation_font_size=12,
-                            annotation_bgcolor=sl_color
+                            opacity=0.8
                         )
                         
-                        # Add TP1 Line
-                        if tp1 is not None:
-                            fig.add_hline(
-                                y=tp1,
-                                line=dict(color=tp_color, width=2),
-                                opacity=0.8,
-                                annotation_text=f"TP1 {tp1:.4f}",
-                                annotation_position="right",
-                                annotation_font_color="white",
-                                annotation_font_size=12,
-                                annotation_bgcolor=tp_color
+                        fig.add_annotation(
+                            x=extended_date,
+                            y=sl,
+                            text=f"SL: {sl:.4f} ({sl_pct:+.2f}%)",
+                            showarrow=False,
+                            xanchor="left",
+                            yanchor="middle",
+                            font=dict(color="white", size=11, family="Arial"),
+                            bgcolor=sl_color,
+                            bordercolor=sl_color,
+                            borderwidth=1,
+                            borderpad=4,
+                            opacity=0.9
+                        )
+                        
+                        # Add risk zone shading between entry and SL
+                        if (signal == "Long" and sl < entry) or (signal == "Short" and sl > entry):
+                            fig.add_shape(
+                                type="rect",
+                                x0=start_date,  # Start more to the right
+                                x1=extended_date,
+                                y0=min(entry, sl),
+                                y1=max(entry, sl),
+                                fillcolor=risk_zone_color,
+                                line=dict(width=0),
+                                layer="below"
                             )
                         
-                        # Add TP2 Line
-                        if tp2 is not None:
-                            fig.add_hline(
-                                y=tp2,
+                        # Add TP1 Line with TradingView-style box
+                        if tp1 is not None:
+                            fig.add_shape(
+                                type="line",
+                                x0=start_date,  # Start more to the right
+                                x1=extended_date,
+                                y0=tp1,
+                                y1=tp1,
                                 line=dict(color=tp_color, width=2),
-                                opacity=0.8,
-                                annotation_text=f"TP2 {tp2:.4f}",
-                                annotation_position="right",
-                                annotation_font_color="white",
-                                annotation_font_size=12,
-                                annotation_bgcolor=tp_color
+                                opacity=0.8
                             )
+                            
+                            fig.add_annotation(
+                                x=extended_date,
+                                y=tp1,
+                                text=f"TP1: {tp1:.4f} ({tp1_pct:+.2f}%)",
+                                showarrow=False,
+                                xanchor="left",
+                                yanchor="middle",
+                                font=dict(color="white", size=11, family="Arial"),
+                                bgcolor=tp_color,
+                                bordercolor=tp_color,
+                                borderwidth=1,
+                                borderpad=4,
+                                opacity=0.9
+                            )
+                            
+                            # Add profit zone shading between entry and TP1
+                            if (signal == "Long" and tp1 > entry) or (signal == "Short" and tp1 < entry):
+                                fig.add_shape(
+                                    type="rect",
+                                    x0=start_date,  # Start more to the right
+                                    x1=extended_date,
+                                    y0=min(entry, tp1),
+                                    y1=max(entry, tp1),
+                                    fillcolor=profit_zone_color,
+                                    line=dict(width=0),
+                                    layer="below"
+                                )
+                        
+                        # Add TP2 Line with TradingView-style box
+                        if tp2 is not None:
+                            fig.add_shape(
+                                type="line",
+                                x0=start_date,  # Start more to the right
+                                x1=extended_date,
+                                y0=tp2,
+                                y1=tp2,
+                                line=dict(color=tp_color, width=2),
+                                opacity=0.8
+                            )
+                            
+                            fig.add_annotation(
+                                x=extended_date,
+                                y=tp2,
+                                text=f"TP2: {tp2:.4f} ({tp2_pct:+.2f}%)",
+                                showarrow=False,
+                                xanchor="left",
+                                yanchor="middle",
+                                font=dict(color="white", size=11, family="Arial"),
+                                bgcolor=tp_color,
+                                bordercolor=tp_color,
+                                borderwidth=1,
+                                borderpad=4,
+                                opacity=0.9
+                            )
+                            
+                            # Add profit zone shading between TP1 and TP2 (if both exist)
+                            if tp1 is not None:
+                                if (signal == "Long" and tp2 > tp1) or (signal == "Short" and tp2 < tp1):
+                                    fig.add_shape(
+                                        type="rect",
+                                        x0=start_date,  # Start more to the right
+                                        x1=extended_date,
+                                        y0=min(tp1, tp2),
+                                        y1=max(tp1, tp2),
+                                        fillcolor=profit_zone_color,
+                                        line=dict(width=0),
+                                        layer="below"
+                                    )
                     
                     # Add Risk:Reward annotation
                     risk_reward_ratio = trade_recommendation_data.get('tp1_rrr', 0)
