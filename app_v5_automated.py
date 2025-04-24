@@ -1078,7 +1078,10 @@ def calculate_backtest_stats(trade_recommendation, future_data):
     
     # Calculate current percentage change from entry
     if entry_price > 0:
-        current_pct_change = ((stats['final_price'] - entry_price) / entry_price) * 100
+        if signal == "Long":
+            current_pct_change = ((stats['final_price'] - entry_price) / entry_price) * 100
+        else:  # Short
+            current_pct_change = ((entry_price - stats['final_price']) / entry_price) * 100
         stats['current_pct_change'] = round(current_pct_change, 2)
     
     # Calculate days in trade
@@ -1929,10 +1932,15 @@ def index():
                             opacity=0.8
                         )
                         
-                        # Calculate percentage changes
-                        sl_pct = ((sl - entry) / entry) * 100
-                        tp1_pct = ((tp1 - entry) / entry) * 100 if tp1 is not None else None
-                        tp2_pct = ((tp2 - entry) / entry) * 100 if tp2 is not None else None
+                        # Calculate percentage changes - corrected for direction
+                        if signal == "Long":
+                            sl_pct = ((sl - entry) / entry) * 100
+                            tp1_pct = ((tp1 - entry) / entry) * 100 if tp1 is not None else None
+                            tp2_pct = ((tp2 - entry) / entry) * 100 if tp2 is not None else None
+                        else:  # Short
+                            sl_pct = ((entry - sl) / entry) * 100
+                            tp1_pct = ((entry - tp1) / entry) * 100 if tp1 is not None else None
+                            tp2_pct = ((entry - tp2) / entry) * 100 if tp2 is not None else None
                         
                         # Set colors based on signal type (Long/Short)
                         if signal == "Long":
@@ -2103,9 +2111,14 @@ def index():
                             tp_color = "rgba(0, 180, 75, 0.9)"      # Green for take profit
                         
                         # Calculate percentage changes
-                        sl_pct = ((sl - entry) / entry) * 100
-                        tp1_pct = ((tp1 - entry) / entry) * 100 if tp1 is not None else None
-                        tp2_pct = ((tp2 - entry) / entry) * 100 if tp2 is not None else None
+                        if signal == "Long":
+                            sl_pct = ((sl - entry) / entry) * 100
+                            tp1_pct = ((tp1 - entry) / entry) * 100 if tp1 is not None else None
+                            tp2_pct = ((tp2 - entry) / entry) * 100 if tp2 is not None else None
+                        else:  # Short
+                            sl_pct = ((entry - sl) / entry) * 100
+                            tp1_pct = ((entry - tp1) / entry) * 100 if tp1 is not None else None
+                            tp2_pct = ((entry - tp2) / entry) * 100 if tp2 is not None else None
                         
                         # Add Entry Line with TradingView-style box
                         fig.add_shape(
