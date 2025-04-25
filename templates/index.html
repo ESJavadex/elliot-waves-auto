@@ -733,7 +733,7 @@
                      ({{ form_values.start_date }} to {{ form_values.end_date | default('Today', true) }}, {{ form_values.interval }})
                 {% endif %}
             </h2>
-            <div class="plot-container">{{ plot_html | safe }}</div>
+            <div class="plot-container" id="interactive-plot-container">{{ plot_html | safe }}</div>
         {% elif request.method == 'POST' and not error and not multi_stock_results %}
              <p style="text-align:center; color: #999; margin: 40px 0;">No plot generated. Check parameters or console logs.</p>
         {% endif %}
@@ -927,7 +927,10 @@
             <p>Made by <a href="https://github.com/ESJavadex" target="_blank" rel="noopener noreferrer">Esjavadex</a></p>
         </footer>
 
-    </div> <script>
+    </div>
+    <!-- Load custom scripts -->
+    <script src="{{ url_for('static', filename='js/draggable-boxes.js') }}"></script>
+    <script>
         document.addEventListener('DOMContentLoaded', function() {
             // --- Elements ---
             const hideNoEntryCheckbox = document.getElementById('hide-no-entry');
@@ -951,11 +954,11 @@
                 const stockListsData = {% if stock_lists %}{{ stock_lists|tojson|safe }}{% else %}{} {% endif %};
                 console.log('Stock lists from template:', stockListsData);
                 
-                const container = document.getElementById('presets-container');
-                if (!container) return;
+                const presetsContainer = document.getElementById('presets-container');
+                if (!presetsContainer) return;
                 
                 // Clear existing buttons
-                container.innerHTML = '';
+                presetsContainer.innerHTML = '';
                 
                 // Create buttons for each preset
                 for (const [name, stocks] of Object.entries(stockListsData)) {
@@ -977,7 +980,7 @@
                         }
                     });
                     
-                    container.appendChild(button);
+                    presetsContainer.appendChild(button);
                 }
                 
                 // Add a clear button
@@ -995,13 +998,13 @@
                     }
                 });
                 
-                container.appendChild(clearButton);
+                presetsContainer.appendChild(clearButton);
             } catch (error) {
                 console.error('Error loading stock presets:', error);
                 // Add a message to the presets container
-                const container = document.getElementById('presets-container');
-                if (container) {
-                    container.innerHTML = `<div style="color:red; padding:10px;">Error loading presets: ${error.message}</div>`;
+                const errorContainer = document.getElementById('presets-container');
+                if (errorContainer) {
+                    errorContainer.innerHTML = `<div style="color:red; padding:10px;">Error loading presets: ${error.message}</div>`;
                 }
             }
 
@@ -1029,9 +1032,19 @@
                      });
                  }
 
+                let tableCollapsed = false;
+            
+                function updateToggleButton(isCollapsed) {
+                    if (toggleTableBtn) {
+                        toggleTableBtn.querySelector('.btn-text').textContent = isCollapsed ? 'Show Table' : 'Hide Table';
+                        toggleTableBtn.querySelector('.icon').textContent = isCollapsed ? '▶' : '▼';
+                        toggleTableBtn.classList.toggle('collapsed', isCollapsed);
+                    }
+                }
+            
                 if (toggleTableBtn && multiStockResultsDiv) {
-                     tableCollapsed = multiStockResultsDiv.classList.contains('collapsed');
-                     updateToggleButton(tableCollapsed);
+                    tableCollapsed = multiStockResultsDiv.classList.contains('collapsed');
+                    updateToggleButton(tableCollapsed);
                     toggleTableBtn.addEventListener('click', () => {
                         tableCollapsed = !tableCollapsed;
                         multiStockResultsDiv.classList.toggle('collapsed', tableCollapsed);

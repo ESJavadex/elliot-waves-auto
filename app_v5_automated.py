@@ -653,8 +653,23 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
                      if is_corrective_wave and moving_down_expected and last_rsi > RSI_OVERBOUGHT: rsi_supports = True
                      if rsi_supports: confluence_points.append(f"RSI {last_rsi:.1f}")
              confluence_text = f"<br><i>Confluence: {', '.join(sorted(list(set(confluence_points))))}</i>" if confluence_points else ""
-             fig.add_shape(type="rect", xref="x", yref="y", layer="below", x0=actual_start_date, y0=target_low, x1=box_end_date, y1=target_high,
-                           line=dict(color=f"rgba({color_rgb}, 0.7)", width=1, dash=line_style), fillcolor=f"rgba({color_rgb}, {box_opacity})", row=1, col=1)
+             # Add target box with enhanced properties for dragging
+             fig.add_shape(
+                 type="rect", 
+                 xref="x", 
+                 yref="y", 
+                 layer="above",  # Changed from 'below' to 'above' for better interaction
+                 x0=actual_start_date, 
+                 y0=target_low, 
+                 x1=box_end_date, 
+                 y1=target_high,
+                 line=dict(color=f"rgba({color_rgb}, 0.7)", width=1, dash=line_style), 
+                 fillcolor=f"rgba({color_rgb}, {box_opacity})", 
+                 row=1, 
+                 col=1,
+                 editable=True,  # Make the shape editable
+                 name=f"target_box_{target_wave_label}",  # Add a name for identification
+             )
              basis_date_str = basis_point.name.strftime('%Y-%m-%d') if basis_point is not None and pd.notna(basis_point.name) else "N/A"
              basis_text = basis_info_override if basis_info_override else f"(Basis: W{projection_basis_label} {basis_date_str})"
              
@@ -2349,8 +2364,36 @@ def index():
             # --- Generate plot HTML (after all modifications) ---
             if fig:
                 try: 
-                    plot_html = plotly.offline.plot(fig, output_type='div', include_plotlyjs='cdn', config={'displayModeBar': True})
-                    print("Plotly figure converted to HTML div.")
+                    # Enhanced Plotly configuration for interactive shapes
+                    # Create a safe filename for the export
+                    export_filename = 'elliott_wave_analysis'
+                    if 'ticker' in locals() and ticker:
+                        export_filename = f'{ticker}_{interval}_analysis'
+                    elif 'multi_stock_results' in locals() and multi_stock_results:
+                        export_filename = f'multi_stock_analysis'
+                    
+                    plotly_config = {
+                        'displayModeBar': True,
+                        'editable': True,  # Make the plot editable
+                        'modeBarButtonsToAdd': ['drawline', 'drawopenpath', 'eraseshape'],  # Add drawing tools
+                        'toImageButtonOptions': {
+                            'format': 'png',
+                            'filename': export_filename,
+                            'height': 800,
+                            'width': 1200,
+                            'scale': 2
+                        }
+                    }
+                    
+                    # Make shapes editable
+                    for i, shape in enumerate(fig.layout.shapes):
+                        # Set editable properties for target boxes
+                        if shape.type == 'rect':
+                            shape.editable = True
+                            shape.layer = 'above'
+                    
+                    plot_html = plotly.offline.plot(fig, output_type='div', include_plotlyjs='cdn', config=plotly_config)
+                    print("Plotly figure converted to HTML div with interactive features.")
                 except Exception as plot_conversion_err: 
                     print(f"!!! Error converting plot to HTML: {plot_conversion_err}")
                     traceback.print_exc()
