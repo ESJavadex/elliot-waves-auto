@@ -1333,6 +1333,11 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
         if signal == "Long": stop_loss_price -= buffer
         elif signal == "Short": stop_loss_price += buffer
         print(f"  Applied ATR buffer ({buffer:.4f}) to SL.")
+        
+    # Ensure SL is never below 0
+    if stop_loss_price <= 0:
+        stop_loss_price = 0.0001  # Set to a small positive value
+        print("  Warning: Stop Loss was adjusted to prevent negative value.")
 
     # Ensure SL makes sense relative to entry
     if signal == "Long" and stop_loss_price >= entry_price:
@@ -1362,6 +1367,13 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
         else: # Short
             tp1_price = entry_price - (sl_distance_pips * rr_ratio_tp1)
             tp2_price = entry_price - (sl_distance_pips * rr_ratio_tp2)
+            # Ensure TP values are never below 0 for Short positions
+            if tp1_price <= 0:
+                tp1_price = 0.0001
+                print("  Warning: TP1 was adjusted to prevent negative value.")
+            if tp2_price <= 0:
+                tp2_price = 0.0001
+                print("  Warning: TP2 was adjusted to prevent negative value.")
         reason += f" (TPs based on {rr_ratio_tp1}:1 and {rr_ratio_tp2}:1 R:R)"
 
     # --- Calculate RRR ---
@@ -1395,6 +1407,14 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
         tp2_rrr = 0.0
         print("  Note: Original TP2 moved to TP1 as original TP1 was invalid.")
 
+    # Ensure TP values are never below 0
+    if tp1_price is not None and tp1_price <= 0:
+        tp1_price = 0.0001
+        print("  Warning: TP1 was adjusted to prevent negative value.")
+    if tp2_price is not None and tp2_price <= 0:
+        tp2_price = 0.0001
+        print("  Warning: TP2 was adjusted to prevent negative value.")
+        
     if tp1_price is None:
         recommendation['reason'] = f"Could not determine valid Take Profit levels for label '{last_label}'."
         print(f"  Result: {recommendation['reason']}")
