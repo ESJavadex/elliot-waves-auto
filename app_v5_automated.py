@@ -1052,6 +1052,7 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
                     
                     # Trader thinking: W5 projection based on overall wave structure
                     # For Wave 5, calculate the distance from Wave 0 to Wave 3 (the 1-3 range)
+                    w1_length = abs(p1_hl - p0_hl)
                     w1_to_w3_range = hypo_p3_price - p0_hl
                     w1_length = abs(p1_hl - p0_hl)
                     
@@ -1424,6 +1425,71 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
                             **common_args
                         )
 
+        # --- <<< NEW: If Wave (C?) finished -> Project New Wave 1 (Primary) >>> ---
+        elif projection_basis_label == '(C?)' and analysis_results.get("details", {}).get("correction_guess"):
+            correction_details = analysis_results["details"]["correction_guess"]
+            pc = correction_details.get('C') # End of correction (our new Wave 0)
+            # We need the original impulse points (0 and 1) to estimate New W1 size
+            p0 = points.get(0)
+            p1 = points.get(1)
+
+            if pc is not None and p0 is not None and p1 is not None:
+                print("  Projecting New Wave 1 after Corrective (C?) completion...")
+                is_original_impulse_up = details.get("is_upward", True) # Direction of original 0-5 impulse
+
+                # Get relevant points from original impulse Wave 1
+                p0_hl = p0['Low'] if is_original_impulse_up else p0['High']
+                p1_hl = p1['High'] if is_original_impulse_up else p1['Low']
+                pc_close = pc['Close'] # End of correction is start of new impulse
+
+                prev_w1_len = abs(p1_hl - p0_hl) # Length of the previous impulse's Wave 1
+
+                if prev_w1_len > 1e-9:
+                    # Get ATR value for volatility-adjusted targets if available
+                    atr_value = None
+                    if 'ATR' in data.columns and not data['ATR'].isnull().all():
+                        atr_value = data['ATR'].iloc[-1]
+                        print(f"  Trader insight: Using current ATR ({atr_value:.2f}) to adjust New W1 target zone")
+                    
+                    # New impulse direction is typically opposite to the correction
+                    # If original impulse was up, correction was down, new impulse is up
+                    direction = 1 if is_original_impulse_up else -1
+                    
+                    # Calculate Fibonacci extensions with ATR adjustment
+                    ext_nw1 = calculate_fibonacci_extensions(p0_hl, p1_hl, pc_close, atr_value)
+                    
+                    # Project New W1 based on common ratios to Previous W1
+                    nw1_t1 = ext_nw1.get(0.618)  # 61.8% of previous W1
+                    nw1_t2 = ext_nw1.get(1.0)    # 100% of previous W1
+                    nw1_label = "61.8-100% of Prev W1"
+
+                    # Ensure targets are ordered correctly
+                    if nw1_t1 is not None and nw1_t2 is not None and nw1_t1 > nw1_t2:
+                        nw1_t1, nw1_t2 = nw1_t2, nw1_t1
+
+                    # Check market momentum for potential stronger move
+                    if 'RSI' in data.columns and not data['RSI'].isnull().all():
+                        recent_rsi = data['RSI'].iloc[-5:].mean() if len(data) >= 5 else data['RSI'].iloc[-1]
+                        # If momentum is strong in the direction of the new impulse
+                        if (is_original_impulse_up and recent_rsi > 60) or (not is_original_impulse_up and recent_rsi < 40):
+                            print("  Trader insight: Strong momentum detected, extending New W1 target")
+                            nw1_t2 = ext_nw1.get(1.618)  # 161.8% of previous W1
+                            nw1_label = "61.8-161.8% of Prev W1"
+
+                    center_nw1 = draw_target_box(
+                        "New W1", nw1_t1, nw1_t2, "0, 255, 255", # Cyan for New Wave 1
+                        offset_primary, nw1_label,
+                        pc, # Basis is the end of Wave C
+                        primary=True, **common_args
+                    )
+                    if center_nw1:
+                        projection_path_points.append(center_nw1)
+                        projection_plotted = True # PREVENT FALLBACK
+                else:
+                    print("  Could not calculate New W1 length or targets.")
+            else:
+                print("  Skipping New W1 projection: Missing necessary points (C, P0, or P1).")
+
         # Collect valid projected center points for path drawing
         temp_path_points = [projection_path_points[0]] # Start with the basis point
         for center in [center_w2, center_w3, center_w4, center_w5, center_wa, center_wb, center_wc]:
@@ -1433,7 +1499,7 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
         projection_path_points = sorted(temp_path_points, key=lambda x: x[0])
 
 
-    # --- Fallback Projection (remains the same) ---
+    '''# --- Fallback Projection (remains the same) ---
     if not projection_plotted and last_overall_point is not None and identified_waves is not None and len(identified_waves) >= 2:
          print("  No impulse-based projections made. Attempting Fallback Projection...")
          # (Fallback logic code as before...)
@@ -1456,7 +1522,7 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
                  else: print("  Fallback projection skipped: Invalid points.")
              else: print("  Fallback projection skipped: Cannot find previous point.")
          except Exception as e: print(f"  Error during fallback projection setup: {e}")
-
+    '''
     # --- Draw Predictive Path Lines (remains the same) ---
     if len(projection_path_points) > 1:
         print(f"  Drawing {len(projection_path_points)-1} predictive path segment(s)...")
