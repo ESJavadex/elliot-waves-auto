@@ -300,14 +300,226 @@ def calculate_fibonacci_extensions(p_start_move, p_end_move, p_project_from, atr
 
 def calculate_rsi(data, period=14):
     if 'Close' not in data.columns: return None
-    close_delta = data['Close'].diff()
-    up = close_delta.clip(lower=0); down = -1 * close_delta.clip(upper=0)
-    ma_up = up.ewm(com=period - 1, adjust=True, min_periods=period).mean()
-    ma_down = down.ewm(com=period - 1, adjust=True, min_periods=period).mean()
-    ma_down_safe = ma_down.replace(0, 1e-9)
-    rs = ma_up / ma_down_safe; rsi = 100 - (100 / (1 + rs))
-    rsi[ma_down == 0] = 100
-    return pd.Series(rsi, index=data.index)
+    delta = data['Close'].diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+    
+    avg_gain = gain.rolling(window=period).mean()
+    avg_loss = loss.rolling(window=period).mean()
+    
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+# --- Confirmation Signal Functions ---
+def detect_candlestick_patterns(data, lookback=5):
+    """
+    Detect common candlestick patterns that could confirm trend reversals or continuations.
+    
+    Args:
+        data (pd.DataFrame): DataFrame with OHLC data
+        lookback (int): Number of candles to look back for pattern detection
+        
+    Returns:
+        dict: Dictionary with detected patterns and their strengths
+    """
+    patterns = {}
+    recent_data = data.iloc[-lookback:].copy() if len(data) >= lookback else data.copy()
+    
+    # Bullish Engulfing Pattern (potential reversal after downtrend)
+    for i in range(1, len(recent_data)):
+        prev_candle = recent_data.iloc[i-1]
+        curr_candle = recent_data.iloc[i]
+        
+        # Bullish Engulfing
+        if (prev_candle['Close'] < prev_candle['Open'] and  # Previous candle is bearish
+            curr_candle['Close'] > curr_candle['Open'] and  # Current candle is bullish
+            curr_candle['Open'] < prev_candle['Close'] and  # Current opens below previous close
+            curr_candle['Close'] > prev_candle['Open']):    # Current closes above previous open
+            patterns['bullish_engulfing'] = {
+                'index': recent_data.index[i],
+                'strength': 0.8,  # Strong signal
+                'type': 'bullish'
+            }
+        
+        # Bearish Engulfing
+        if (prev_candle['Close'] > prev_candle['Open'] and  # Previous candle is bullish
+            curr_candle['Close'] < curr_candle['Open'] and  # Current candle is bearish
+            curr_candle['Open'] > prev_candle['Close'] and  # Current opens above previous close
+            curr_candle['Close'] < prev_candle['Open']):    # Current closes below previous open
+            patterns['bearish_engulfing'] = {
+                'index': recent_data.index[i],
+                'strength': 0.8,  # Strong signal
+                'type': 'bearish'
+            }
+    
+    # Hammer (bullish reversal after downtrend)
+    for i in range(len(recent_data)):
+        candle = recent_data.iloc[i]
+        body_size = abs(candle['Open'] - candle['Close'])
+        lower_shadow = min(candle['Open'], candle['Close']) - candle['Low']
+        upper_shadow = candle['High'] - max(candle['Open'], candle['Close'])
+        
+        # Check for hammer pattern (small body, long lower shadow, small upper shadow)
+        if (lower_shadow > 2 * body_size and  # Long lower shadow
+            upper_shadow < 0.5 * body_size):   # Short or no upper shadow
+            patterns['hammer'] = {
+                'index': recent_data.index[i],
+                'strength': 0.7,
+                'type': 'bullish'
+            }
+    
+    # Shooting Star (bearish reversal after uptrend)
+    for i in range(len(recent_data)):
+        candle = recent_data.iloc[i]
+        body_size = abs(candle['Open'] - candle['Close'])
+        lower_shadow = min(candle['Open'], candle['Close']) - candle['Low']
+        upper_shadow = candle['High'] - max(candle['Open'], candle['Close'])
+        
+        # Check for shooting star pattern (small body, long upper shadow, small lower shadow)
+        if (upper_shadow > 2 * body_size and  # Long upper shadow
+            lower_shadow < 0.5 * body_size):   # Short or no lower shadow
+            patterns['shooting_star'] = {
+                'index': recent_data.index[i],
+                'strength': 0.7,
+                'type': 'bearish'
+            }
+    
+    return patterns
+
+def detect_ma_crossovers(data, fast_period=20, slow_period=50):
+    """
+    Detect moving average crossovers that could confirm trend changes.
+    
+    Args:
+        data (pd.DataFrame): DataFrame with price data
+        fast_period (int): Period for the fast moving average
+        slow_period (int): Period for the slow moving average
+        
+    Returns:
+        dict: Dictionary with detected crossovers and their details
+    """
+    crossovers = {}
+    
+    # Ensure we have the required MAs
+    if f'MA{fast_period}' not in data.columns:
+        data[f'MA{fast_period}'] = data['Close'].rolling(window=fast_period).mean()
+    
+    if f'MA{slow_period}' not in data.columns:
+        data[f'MA{slow_period}'] = data['Close'].rolling(window=slow_period).mean()
+    
+    # Check for recent crossover (last 3 candles)
+    lookback = min(5, len(data)-1)
+    for i in range(1, lookback+1):
+        prev_fast = data[f'MA{fast_period}'].iloc[-i-1]
+        prev_slow = data[f'MA{slow_period}'].iloc[-i-1]
+        curr_fast = data[f'MA{fast_period}'].iloc[-i]
+        curr_slow = data[f'MA{slow_period}'].iloc[-i]
+        
+        # Bullish crossover (fast MA crosses above slow MA)
+        if prev_fast <= prev_slow and curr_fast > curr_slow:
+            crossovers['bullish_ma_cross'] = {
+                'index': data.index[-i],
+                'strength': 0.75,
+                'type': 'bullish',
+                'description': f'MA{fast_period} crossed above MA{slow_period}'
+            }
+            break
+        
+        # Bearish crossover (fast MA crosses below slow MA)
+        if prev_fast >= prev_slow and curr_fast < curr_slow:
+            crossovers['bearish_ma_cross'] = {
+                'index': data.index[-i],
+                'strength': 0.75,
+                'type': 'bearish',
+                'description': f'MA{fast_period} crossed below MA{slow_period}'
+            }
+            break
+    
+    return crossovers
+
+def detect_trendline_breaks(data, points, is_upward, lookback=20):
+    """
+    Detect if there's a break of a trendline drawn from recent wave points.
+    
+    Args:
+        data (pd.DataFrame): DataFrame with price data
+        points (dict): Dictionary of wave points
+        is_upward (bool): Whether the impulse wave is upward
+        lookback (int): Number of candles to look back for trendline detection
+        
+    Returns:
+        dict: Dictionary with detected trendline breaks
+    """
+    breaks = {}
+    recent_data = data.iloc[-lookback:].copy() if len(data) >= lookback else data.copy()
+    
+    # For corrective waves, we can draw trendlines connecting the start and end points
+    # For example, after Wave 2, connect Wave 0 and Wave 2 lows for upward impulse
+    if 0 in points and 2 in points and is_upward:
+        # For upward impulse, connect Wave 0 and Wave 2 lows to form support trendline
+        point0_idx = points[0].get('idx', 0)
+        point2_idx = points[2].get('idx', 0)
+        
+        if point0_idx < len(data) and point2_idx < len(data):
+            point0_low = points[0]['Low']
+            point2_low = points[2]['Low']
+            
+            # Calculate trendline slope and intercept
+            if point2_idx > point0_idx:  # Ensure valid points
+                slope = (point2_low - point0_low) / (point2_idx - point0_idx)
+                intercept = point0_low - slope * point0_idx
+                
+                # Check if recent prices have broken above this trendline
+                for i in range(1, min(5, len(recent_data))):
+                    curr_idx = len(data) - i
+                    trendline_value = slope * curr_idx + intercept
+                    prev_close = data['Close'].iloc[-i-1]
+                    curr_close = data['Close'].iloc[-i]
+                    
+                    # Bullish break (price closes above trendline after being below)
+                    if prev_close < trendline_value and curr_close > trendline_value:
+                        breaks['bullish_trendline_break'] = {
+                            'index': data.index[-i],
+                            'strength': 0.85,  # Strong confirmation
+                            'type': 'bullish',
+                            'description': 'Break above support trendline'
+                        }
+                        break
+    
+    # Similar logic for downward impulse and resistance trendline breaks
+    if 0 in points and 2 in points and not is_upward:
+        # For downward impulse, connect Wave 0 and Wave 2 highs to form resistance trendline
+        point0_idx = points[0].get('idx', 0)
+        point2_idx = points[2].get('idx', 0)
+        
+        if point0_idx < len(data) and point2_idx < len(data):
+            point0_high = points[0]['High']
+            point2_high = points[2]['High']
+            
+            # Calculate trendline slope and intercept
+            if point2_idx > point0_idx:  # Ensure valid points
+                slope = (point2_high - point0_high) / (point2_idx - point0_idx)
+                intercept = point0_high - slope * point0_idx
+                
+                # Check if recent prices have broken below this trendline
+                for i in range(1, min(5, len(recent_data))):
+                    curr_idx = len(data) - i
+                    trendline_value = slope * curr_idx + intercept
+                    prev_close = data['Close'].iloc[-i-1]
+                    curr_close = data['Close'].iloc[-i]
+                    
+                    # Bearish break (price closes below trendline after being above)
+                    if prev_close > trendline_value and curr_close < trendline_value:
+                        breaks['bearish_trendline_break'] = {
+                            'index': data.index[-i],
+                            'strength': 0.85,  # Strong confirmation
+                            'type': 'bearish',
+                            'description': 'Break below resistance trendline'
+                        }
+                        break
+    
+    return breaks
 
 # --- Data Fetching ---
 # (Function remains the same as before)
@@ -1747,7 +1959,6 @@ def run_analysis(ticker, start_date, end_date, interval):
     return fig, analysis_summary
 
 # --- Backtest Simulation Runner ---
-# (Function remains the same)
 def run_backtest_simulation(ticker, start_date, analysis_date, check_date, interval):
     """Runs the EW analysis as of 'analysis_date' and overlays actual data up to 'check_date'."""
     # ... (function code as before) ...
@@ -1958,18 +2169,41 @@ def calculate_backtest_stats(trade_recommendation, future_data):
     stats['max_profit_pct'] = round(max_profit_pct, 2)
     stats['max_loss_pct'] = round(max_loss_pct, 2)
     
+    # Calculate days from entry to TP1, TP2, or SL
+    entry_date = future_data.index[0]  # First date in future data is the entry date
+    
     # Determine final status
     if hit_sl:
-        stats['status'] = 'stopped_out'
+        # Check if TP1 was hit before SL (TP1 and then SL scenario)
+        if hit_tp1 and stats['hit_tp1_date'] is not None and stats['hit_sl_date'] is not None and stats['hit_tp1_date'] < stats['hit_sl_date']:
+            stats['status'] = 'TP1/SL'
+            stats['color'] = 'orange'  # Orange color for TP1 then SL scenario
+            # Use days to SL since that's the final outcome
+            stats['days_in_trade'] = (stats['hit_sl_date'] - entry_date).days if stats['hit_sl_date'] is not None else None
+        else:
+            stats['status'] = 'stopped_out'
+            stats['color'] = 'red'  # Red color for direct SL hit
+            stats['days_in_trade'] = (stats['hit_sl_date'] - entry_date).days if stats['hit_sl_date'] is not None else None
     elif hit_tp2:
         stats['status'] = 'hit_tp2'
+        stats['color'] = 'green'  # Green color for TP2 hit
+        stats['days_in_trade'] = (stats['hit_tp2_date'] - entry_date).days if stats['hit_tp2_date'] is not None else None
     elif hit_tp1:
         stats['status'] = 'hit_tp1'
+        stats['color'] = 'lightgreen'  # Light green color for TP1 hit
+        stats['days_in_trade'] = (stats['hit_tp1_date'] - entry_date).days if stats['hit_tp1_date'] is not None else None
     else:
         stats['status'] = 'still_running'
+        stats['color'] = 'blue'  # Blue color for still running
+        stats['days_in_trade'] = stats['days_in_trade']  # Set days to the total days in trade
     
-    print(f"  Backtest Stats: Status={stats['status']}, TP1 Hit={stats['hit_tp1']}, TP2 Hit={stats['hit_tp2']}, SL Hit={stats['hit_sl']}")
+    print(f"  Backtest Stats: Status={stats['status']} ({stats['color']}), TP1 Hit={stats['hit_tp1']}, TP2 Hit={stats['hit_tp2']}, SL Hit={stats['hit_sl']}")
     print(f"  Max Profit: {stats['max_profit_pct']}%, Max Loss: {stats['max_loss_pct']}%")
+    if stats['days_in_trade'] is not None:
+        if stats['status'] == 'TP1/SL':
+            print(f"  Days to TP1: {(stats['hit_tp1_date'] - entry_date).days}, Days to SL: {stats['days_in_trade']}")
+        else:
+            print(f"  Days to {'SL' if hit_sl else 'TP1' if hit_tp1 else 'TP2' if hit_tp2 else 'current'}: {stats['days_in_trade']}")
     
     return stats
 
@@ -2022,6 +2256,22 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
     entry_price = last_point_overall['Close'] # Enter based on the close of the last identified point overall
     current_atr = stock_data['ATR'].iloc[-1] if 'ATR' in stock_data.columns and not stock_data['ATR'].isnull().all() else None
     atr_stop_multiplier = 1.0 # Multiplier for ATR buffer on stop loss
+    
+    # --- NEW: Check for trend alignment with MA200 ---
+    ma200_present = 'MA200' in stock_data.columns and not stock_data['MA200'].isnull().all()
+    if ma200_present:
+        current_ma200 = stock_data['MA200'].iloc[-1]
+        price_above_ma200 = entry_price > current_ma200
+        
+        # For long trades, we want price above MA200; for short trades, we want price below MA200
+        trend_aligned = (is_impulse_up and price_above_ma200) or (not is_impulse_up and not price_above_ma200)
+        
+        if not trend_aligned:
+            recommendation['reason'] = f"Trade direction not aligned with MA200 trend. {'Price below MA200 for potential long' if is_impulse_up else 'Price above MA200 for potential short'}."
+            print(f"  Result: {recommendation['reason']}")
+            return recommendation
+        else:
+            print(f"  Trend filter passed: {'Price above MA200 for long' if is_impulse_up else 'Price below MA200 for short'}")
 
     # --- Determine Trade Setup Based on Last EW Label ---
     trade_setup_found = False
@@ -2094,6 +2344,37 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
         recommendation['reason'] = f"No actionable trade setup identified at Wave '{last_label}'."
         print(f"  Result: {recommendation['reason']}")
         return recommendation
+        
+    # --- NEW: Check for confirmation signals ---
+    confirmation_signals = {
+        'candlestick_patterns': detect_candlestick_patterns(stock_data),
+        'ma_crossovers': detect_ma_crossovers(stock_data),
+        'trendline_breaks': detect_trendline_breaks(stock_data, points, is_impulse_up)
+    }
+    
+    # Filter signals that match our trade direction
+    matching_signals = []
+    expected_signal_type = 'bullish' if signal == 'Long' else 'bearish'
+    
+    for signal_type, signals in confirmation_signals.items():
+        for signal_name, signal_data in signals.items():
+            if signal_data.get('type') == expected_signal_type:
+                matching_signals.append({
+                    'name': signal_name,
+                    'type': signal_type,
+                    'strength': signal_data.get('strength', 0),
+                    'description': signal_data.get('description', signal_name)
+                })
+    
+    # Require at least one confirmation signal
+    if not matching_signals:
+        recommendation['reason'] = f"No confirmation signals found for {signal} trade at Wave '{last_label}'."
+        print(f"  Result: {recommendation['reason']}")
+        return recommendation
+    
+    # Add confirmation details to reason
+    confirmation_desc = ", ".join([f"{s['name']}" for s in matching_signals[:2]])
+    reason += f". Confirmed by: {confirmation_desc}"
 
     if stop_loss_price is None or pd.isna(stop_loss_price):
         recommendation['reason'] = f"Could not determine Stop Loss for label '{last_label}'."
@@ -2198,10 +2479,15 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
 
     # --- Calculate Confidence Score (Example Logic - Needs Refinement) ---
     confidence_score = 0
-    # Base on EW score (max contribution: 50)
-    confidence_score += max(0, min(50, base_score / 8)) # Rough scaling, assuming max score ~400
+    # Base on EW score (max contribution: 40)
+    confidence_score += max(0, min(40, base_score / 10)) # Adjusted scaling
 
-    # Boost for Guideline adherence (max contribution: 30)
+    # NEW: Add points for confirmation signals (max contribution: 20)
+    confirmation_boost = sum([signal['strength'] * 10 for signal in matching_signals[:3]])
+    confidence_score += min(20, confirmation_boost)
+    print(f"  Confirmation signals boost: +{min(20, confirmation_boost):.1f} points from {len(matching_signals)} signals")
+    
+    # Boost for Guideline adherence (max contribution: 25)
     guideline_boost = 0
     guideline_count = 0
     # Relevant guidelines depending on the wave we are entering BEFORE
@@ -2213,10 +2499,10 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
 
     for g_name, g_passed in guidelines.items():
          if g_name in relevant_guidelines or g_name.startswith('Vol_'): # Include Vol guidelines
-             guideline_count += 1
-             if g_passed: guideline_boost += (10 if g_name.startswith('Vol_') else 15) # Give volume less weight
+              guideline_count += 1
+              if g_passed: guideline_boost += (10 if g_name.startswith('Vol_') else 15) # Give volume less weight
 
-    if guideline_count > 0: confidence_score += max(0, min(30, (guideline_boost / (guideline_count * 15)) * 30)) # Normalize boost
+    if guideline_count > 0: confidence_score += max(0, min(25, (guideline_boost / (guideline_count * 15)) * 25)) # Normalize boost
 
     # Boost for Risk-Reward (max contribution: 15)
     if tp1_rrr >= 1.5: confidence_score += 5
@@ -2262,9 +2548,11 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
         'account_size': demo_account_size,
         'risk_percent': risk_percent,
         'currency': currency,
-        'notes': f"Recommendation based on EW analysis ending {last_ew_point.name.strftime('%Y-%m-%d')} (Label {last_label}). Entry assumes execution at close of {last_point_overall.name.strftime('%Y-%m-%d')}."
+        'notes': f"Recommendation based on EW analysis ending {last_ew_point.name.strftime('%Y-%m-%d')} (Label {last_label}). Entry assumes execution at close of {last_point_overall.name.strftime('%Y-%m-%d')}.",
+        # NEW: Add confirmation signals to the recommendation
+        'confirmation_signals': matching_signals
     })
-
+    
     # Get the latest price to check if levels have been reached
     latest_price = stock_data['Close'].iloc[-1]
     
@@ -2535,11 +2823,11 @@ def index():
                             if 'details' in current_analysis_summary and 'correction_guess' in current_analysis_summary['details']:
                                 wave_info['correction'] = True
                                 correction_data = current_analysis_summary['details']['correction_guess']
-                                if correction_data and 'C' in correction_data and correction_data['C']:
+                                if correction_data and 'C' in correction_data and correction_data.get('C') is not None:
                                     wave_info['correction_target'] = 'C'
-                                elif correction_data and 'B' in correction_data and correction_data['B']:
+                                elif correction_data and 'B' in correction_data and correction_data.get('B') is not None:
                                     wave_info['correction_target'] = 'B'
-                                elif correction_data and 'A' in correction_data and correction_data['A']:
+                                elif correction_data and 'A' in correction_data and correction_data.get('A') is not None:
                                     wave_info['correction_target'] = 'A'
                                 else:
                                     wave_info['correction_target'] = 'Unknown'
