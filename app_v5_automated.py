@@ -146,8 +146,21 @@ PROMINENCE_ATR_FACTOR = 1.5
 ATR_PERIOD = 14
 RSI_PERIOD = 14
 MA_PERIODS = [20, 50]
-FIB_RETRACEMENTS = [0.236, 0.382, 0.5, 0.618, 0.786]
-FIB_EXTENSIONS = [0.618, 1.0, 1.272, 1.618, 2.0, 2.618, 4.236]
+# Fibonacci Levels - Comprehensive set for realistic trading
+FIB_RETRACEMENTS = [0.236, 0.382, 0.5, 0.618, 0.786, 1.0]
+FIB_EXTENSIONS = [0.618, 1.0, 1.618, 2.0, 2.618, 3.618, 4.236]
+
+# Take Profit Levels for practical trading
+TP_LEVELS = {
+    "TP1": 1.0,      # 100% extension - conservative target
+    "TP2": 1.618,   # 161.8% extension - standard target
+    "TP3": 2.618    # 261.8% extension - aggressive target (strong momentum)
+}
+
+# Alternation Principle Constants
+ALTERNATION_THRESHOLD = 0.618  # If both W2 and W4 exceed this, alternation principle is violated
+SHALLOW_THRESHOLD = 0.382      # Retracements below this are considered shallow
+DEEP_THRESHOLD = 0.618         # Retracements above this are considered deep
 WAVE3_EXTENSION_THRESHOLD = 1.618
 WAVE2_DEEP_RETRACE = 0.618
 WAVE4_SHALLOW_RETRACE = 0.500
@@ -197,22 +210,93 @@ def is_close_to_fib(ratio, fib_levels):
         if abs(ratio - level) < FIB_RATIO_TOLERANCE: return True
     return False
 
-def calculate_fibonacci_retracements(start_price, end_price):
+def calculate_fibonacci_retracements(start_price, end_price, atr_value=None):
     levels = {}
-    diff = end_price - start_price
-    is_upward = diff > 0
-    if abs(diff) < 1e-9: return levels
-    for level in FIB_RETRACEMENTS:
-        levels[level] = end_price - (diff * level) if is_upward else end_price + abs(diff * level)
-    return levels
+    # Check for None values in inputs
+    if start_price is None or end_price is None:
+        print(f"  Warning: Invalid inputs for Fibonacci retracements: {start_price}, {end_price}")
+        return levels
+        
+    try:
+        diff = end_price - start_price
+        is_upward = diff > 0
+        if abs(diff) < 1e-9: return levels
+        
+        # Standard Fibonacci retracements
+        for level in FIB_RETRACEMENTS:
+            levels[level] = end_price - (diff * level) if is_upward else end_price + abs(diff * level)
+        
+        # Apply ATR adjustment if provided (makes targets more realistic by accounting for volatility)
+        if atr_value is not None and atr_value > 0:
+            # Adjust levels based on ATR to account for market volatility
+            # More volatile markets need wider targets
+            atr_factor = min(1.0, atr_value / abs(diff))
+            
+            # Apply ATR adjustment to create more realistic targets
+            for level in levels.keys():
+                # Adjust the precision of the target based on volatility
+                # Higher volatility = wider target zones
+                adjustment = atr_value * 0.5 * atr_factor
+                if is_upward:
+                    levels[level] = levels[level] - adjustment
+                else:
+                    levels[level] = levels[level] + adjustment
+                    
+            print(f"  Trader insight: Applied ATR adjustment ({atr_value:.2f}) to Fibonacci targets")
+            
+        return levels
+    except Exception as e:
+        print(f"  Error in Fibonacci retracement calculation: {e}")
+        return levels
 
-def calculate_fibonacci_extensions(p_start_move, p_end_move, p_project_from):
+def calculate_fibonacci_extensions(p_start_move, p_end_move, p_project_from, atr_value=None):
     levels = {}
-    diff = p_end_move - p_start_move
-    if abs(diff) < 1e-9: return levels
-    for level in FIB_EXTENSIONS:
-        levels[level] = p_project_from + (diff * level)
-    return levels
+    # Check for None values in inputs
+    if p_start_move is None or p_end_move is None or p_project_from is None:
+        print(f"  Warning: Invalid inputs for Fibonacci extensions: {p_start_move}, {p_end_move}, {p_project_from}")
+        return levels
+        
+    try:
+        diff = p_end_move - p_start_move
+        if abs(diff) < 1e-9: return levels
+        # Determine if we're in an uptrend or downtrend based on the direction of the first move
+        is_uptrend = diff > 0
+        
+        # Standard Fibonacci extensions
+        for level in FIB_EXTENSIONS:
+            # For uptrend: project upward from the projection point
+            # For downtrend: project downward from the projection point
+            levels[level] = p_project_from + (abs(diff) * level * (1 if is_uptrend else -1))
+        
+        # Add specific take-profit levels for practical trading
+        for tp_name, tp_level in TP_LEVELS.items():
+            if tp_level not in levels:  # Avoid duplicates
+                levels[tp_level] = p_project_from + (abs(diff) * tp_level * (1 if is_uptrend else -1))
+        
+        # Apply ATR adjustment if provided (makes targets more realistic by accounting for volatility)
+        if atr_value is not None and atr_value > 0:
+            # Calculate ATR factor based on the move size
+            atr_factor = min(1.5, atr_value / abs(diff))
+            
+            # Adjust extension levels based on volatility
+            for level in levels.keys():
+                # For higher extensions, apply progressively larger adjustments
+                # This accounts for increased uncertainty at higher targets
+                adjustment = atr_value * (level * 0.3) * atr_factor
+                
+                if is_uptrend:
+                    # For uptrends, extend targets slightly to account for momentum
+                    levels[level] = levels[level] + adjustment
+                else:
+                    # For downtrends, extend targets downward
+                    levels[level] = levels[level] - adjustment
+            
+            print(f"  Trader insight: Applied ATR adjustment ({atr_value:.2f}) to extension targets")
+            
+        return levels
+    except Exception as e:
+        print(f"  Error in Fibonacci extension calculation: {e}")
+        return levels
 
 def calculate_rsi(data, period=14):
     if 'Close' not in data.columns: return None
@@ -347,8 +431,12 @@ def find_elliott_waves(wave_points, data_full):
         for k, pt in p.items(): p_hl[k] = (pt['Low'] if is_up else pt['High']) if k % 2 == 0 else (pt['High'] if is_up else pt['Low'])
         if not all(k in p_hl for k in required_keys): return -1
         if length >= 3:
-            if (is_up and p_hl[2] > p_hl[0]) or (not is_up and p_hl[2] < p_hl[0]): rules_passed["W2_Ret"] = True; score += SCORE_RULE_PASS
-            else: return -1
+            # Rule: Wave 2 never retraces more than 100% of Wave 1
+            if (is_up and p_hl[2] > p_hl[0]) or (not is_up and p_hl[2] < p_hl[0]): 
+                rules_passed["W2_Ret"] = True; score += SCORE_RULE_PASS
+            else: 
+                print("  Rule violation: Wave 2 retraces more than 100% of Wave 1")
+                return -1
             w2r = calculate_fib_ratio(p_hl[0], p_hl[1], p_hl[2]); fib_details['W2_Ret_W1'] = (w2r, get_fib_level_str(w2r)); score += SCORE_FIB_TARGET_HIT * is_close_to_fib(w2r, [0.5, 0.618, 0.786])
         if length >= 4:
             if (is_up and p_hl[3] <= p_hl[1]) or (not is_up and p_hl[3] >= p_hl[1]): return -1
@@ -356,41 +444,137 @@ def find_elliott_waves(wave_points, data_full):
             fib_details['W3_Ext_W1'] = (w3r, get_fib_level_str(w3r)); score += SCORE_FIB_TARGET_HIT * is_close_to_fib(w3r, [1.618, 2.0, 2.618])
             guidelines_passed["W3_Ext"] = not pd.isna(w3r) and w3r > WAVE3_EXTENSION_THRESHOLD; score += SCORE_GUIDELINE_PASS * guidelines_passed["W3_Ext"]
         if length >= 5:
+            # Rule: Wave 4 never overlaps the end of Wave 1 (except in very volatile markets)
             w1_overlap_level = p_hl[1]
-            if (is_up and p_hl[4] <= w1_overlap_level) or (not is_up and p_hl[4] >= w1_overlap_level): rules_passed["W4_Overlap"] = False
-            else: score += SCORE_RULE_PASS
+            if (is_up and p_hl[4] <= w1_overlap_level) or (not is_up and p_hl[4] >= w1_overlap_level): 
+                rules_passed["W4_Overlap"] = False
+                print("  Rule violation: Wave 4 overlaps the end of Wave 1")
+            else: 
+                score += SCORE_RULE_PASS
             w4r = calculate_fib_ratio(p_hl[2], p_hl[3], p_hl[4]); fib_details['W4_Ret_W3'] = (w4r, get_fib_level_str(w4r)); score += SCORE_FIB_TARGET_HIT * is_close_to_fib(w4r, [0.236, 0.382, 0.5])
+            
+            # Rule: Alternation - If Wave 2 is deep, Wave 4 will be shallow, and vice versa
             w2r = fib_details.get('W2_Ret_W1', (np.nan,))[0]; w2_deep = not pd.isna(w2r) and w2r > WAVE2_DEEP_RETRACE; w4_shallow = not pd.isna(w4r) and w4r < WAVE4_SHALLOW_RETRACE
-            guidelines_passed["Alt_W2W4"] = (w2_deep and w4_shallow) or (not w2_deep and not w4_shallow); score += SCORE_GUIDELINE_PASS * guidelines_passed["Alt_W2W4"]
-        if length >= 6:
-            if (is_up and p_hl[5] <= p_hl[3]) or (not is_up and p_hl[5] >= p_hl[3]): print(f"  Warning: W5 may be truncated...")
-            len_w1 = abs(p_hl[1] - p_hl[0]); len_w3 = abs(p_hl[3] - p_hl[2]); len_w5 = abs(p_hl[5] - p_hl[4])
-            if len_w1 > eps and len_w3 > eps and len_w5 > eps:
-                if len_w3 < len_w1 and len_w3 < len_w5: rules_passed["W3_Shortest"] = False
-                else: score += SCORE_RULE_PASS
-            else: score += SCORE_RULE_PASS
-            w5r = len_w5 / len_w1 if len_w1 > eps else np.nan; fib_details['W5_vs_W1'] = (w5r, get_fib_level_str(w5r)); score += SCORE_FIB_TARGET_HIT * is_close_to_fib(w5r, [0.618, 1.0, 1.618])
-            guidelines_passed["W5_Eq_W1"] = not pd.isna(w5r) and abs(w5r - 1.0) < FIB_RATIO_TOLERANCE; score += SCORE_GUIDELINE_PASS * guidelines_passed["W5_Eq_W1"]
+            guidelines_passed["Alt_W2W4"] = (w2_deep and w4_shallow) or (not w2_deep and not w4_shallow)
+            if guidelines_passed["Alt_W2W4"]:
+                print(f"  Alternation guideline passed: W2 {'deep' if w2_deep else 'shallow'}, W4 {'shallow' if w4_shallow else 'deep'}")
+                score += SCORE_GUIDELINE_PASS
+            else:
+                print(f"  Alternation guideline failed: W2 {'deep' if w2_deep else 'shallow'}, W4 {'shallow' if w4_shallow else 'deep'}")
+        if length >= 5:
+            # Check Wave 3 is never the shortest among waves 1, 3, and 5
+            w1_len = abs(p_hl[1] - p_hl[0])
+            w3_len = abs(p_hl[3] - p_hl[2])
+            
+            # Only check Wave 5 if it exists in the sequence
+            if 5 in p_hl and 4 in p_hl and 5 in p and 4 in p:
+                w5_len = abs(p_hl[5] - p_hl[4])
+                if w3_len <= w1_len and w3_len <= w5_len:
+                    print("  Rule violation: Wave 3 is the shortest among waves 1, 3, and 5")
+                    rules_passed["W3_Shortest"] = False
+                    return -1  # Critical rule violation
+                else:
+                    score += SCORE_RULE_PASS
+            else:
+                # If Wave 5 doesn't exist yet, only compare Wave 3 to Wave 1
+                if w3_len <= w1_len:
+                    print("  Potential rule violation: Wave 3 is shorter than Wave 1 (Wave 5 not yet formed)")
+                    # Don't fail completely as Wave 5 might compensate
+                    score -= SCORE_RULE_PASS / 2
+                else:
+                    score += SCORE_RULE_PASS
+            
+            # Check alternation principle between Wave 2 and Wave 4
+            w2_retrace = calculate_fib_ratio(p_hl[0], p_hl[1], p_hl[2])
+            w4_retrace = calculate_fib_ratio(p_hl[2], p_hl[3], p_hl[4])
+            
+            # Automatic alternation principle validation
+            # If both Wave 2 and Wave 4 are deep retracements, this violates the alternation principle
+            if w2_retrace > ALTERNATION_THRESHOLD and w4_retrace > ALTERNATION_THRESHOLD:
+                print(f"  Guideline violation: Both Wave 2 ({w2_retrace:.3f}) and Wave 4 ({w4_retrace:.3f}) are deep retracements")
+                print("  This violates the alternation principle - reducing score")
+                guidelines_passed["Alt_W2W4"] = False
+                score -= SCORE_GUIDELINE_PASS  # Penalize for violating alternation
+            elif w2_retrace < SHALLOW_THRESHOLD and w4_retrace < SHALLOW_THRESHOLD:
+                print(f"  Guideline caution: Both Wave 2 ({w2_retrace:.3f}) and Wave 4 ({w4_retrace:.3f}) are shallow retracements")
+                print("  This is unusual for alternation principle - slightly reducing score")
+                guidelines_passed["Alt_W2W4"] = False
+                score -= SCORE_GUIDELINE_PASS * 0.5  # Smaller penalty
+            else:
+                # Proper alternation: if one is deep, the other is shallow
+                if (w2_retrace > DEEP_THRESHOLD and w4_retrace < SHALLOW_THRESHOLD) or \
+                   (w2_retrace < SHALLOW_THRESHOLD and w4_retrace > DEEP_THRESHOLD):
+                    print(f"  Guideline confirmed: Good alternation between Wave 2 ({w2_retrace:.3f}) and Wave 4 ({w4_retrace:.3f})")
+                    guidelines_passed["Alt_W2W4"] = True
+                    score += SCORE_GUIDELINE_PASS  # Bonus for good alternation
+            # Check Wave 5 relationships (only if Wave 5 exists)
+            if 5 in p_hl and 4 in p_hl and 5 in p and 4 in p:
+                w5r = w5_len / w1_len if w1_len > eps else np.nan
+                fib_details['W5_vs_W1'] = (w5r, get_fib_level_str(w5r))
+                score += SCORE_FIB_TARGET_HIT * is_close_to_fib(w5r, [0.618, 1.0, 1.618])
+                
+                # Check if Wave 5 equals Wave 1 (common in Elliott Wave patterns)
+                guidelines_passed["W5_Eq_W1"] = not pd.isna(w5r) and abs(w5r - 1.0) < FIB_RATIO_TOLERANCE
+                if guidelines_passed["W5_Eq_W1"]:
+                    print("  Guideline passed: Wave 5 approximately equals Wave 1")
+                    score += SCORE_GUIDELINE_PASS
         if has_volume: # Volume checks
             avg_vols = {}; valid_volume_calc = True
-            for k in range(length - 1):
-                if k not in p or (k + 1) not in p or p[k].name is None or p[k+1].name is None: valid_volume_calc = False; break
-                start_idx_dt = p[k].name; end_idx_dt = p[k+1].name
-                if start_idx_dt >= end_idx_dt: avg_vols[k+1] = 0; continue
+            def get_idx(pt):
+                # Works for dict or Series, returns None if not found
+                if isinstance(pt, dict):
+                    return pt.get("idx", None)
+                elif hasattr(pt, 'get'):
+                    return pt.get("idx", None)
+                return None
+
+            for i in range(1, min(length, 6)):  # Only check up to the current length or 5, whichever is smaller
+                if i not in p or i-1 not in p: 
+                    valid_volume_calc = False
+                    continue
+                start_idx = get_idx(p[i-1])
+                end_idx = get_idx(p[i])
+                if start_idx is None or end_idx is None:
+                    # Missing index info, skip this wave for volume calc
+                    print(f"  Skipping volume calc for Wave {i}: missing 'idx' in wave point.")
+                    continue
+                if start_idx >= end_idx or start_idx < 0 or end_idx >= len(data_full):
+                    valid_volume_calc = False
+                    continue
                 try:
-                    vol_slice = full_data.loc[start_idx_dt:end_idx_dt]['Volume'].dropna()
-                    avg_vols[k+1] = vol_slice.mean() if not vol_slice.empty else 0
-                except KeyError: avg_vols[k+1] = 0
-                except Exception: valid_volume_calc = False; break
+                    wave_slice = data_full.iloc[start_idx:end_idx+1]
+                    avg_vols[i] = wave_slice["Volume"].mean() if "Volume" in wave_slice.columns else 0
+                except Exception as e:
+                    print(f"  Volume calculation error for Wave {i}: {e}")
+                    valid_volume_calc = False
+
             if valid_volume_calc:
-                vol_details = {f"AvgVol_W{k}": v for k, v in avg_vols.items()}; v1, v2, v3, v4, v5 = [avg_vols.get(i, 0) for i in range(1, 6)]
-                if length >= 4 and v3 > v1: guidelines_passed["Vol_W3>W1"] = True; score += SCORE_VOLUME_GUIDELINE
-                if length >= 6 and v5 <= v3: guidelines_passed["Vol_W5<=W3"] = True; score += SCORE_VOLUME_GUIDELINE
-                elif length >= 6: guidelines_passed["Vol_W5<=W3"] = False
-                corr_vol_ok = not ( (length >= 3 and v2 >= v1) or (length >= 5 and v4 >= v3) )
+                vol_details = {f"AvgVol_W{k}": v for k, v in avg_vols.items()}
+                # Safely get volume values, defaulting to 0 if not available
+                v1 = avg_vols.get(1, 0)
+                v2 = avg_vols.get(2, 0)
+                v3 = avg_vols.get(3, 0)
+                v4 = avg_vols.get(4, 0)
+                v5 = avg_vols.get(5, 0)
+                if length >= 4 and 3 in avg_vols and 1 in avg_vols and avg_vols[3] > avg_vols[1]: 
+                    guidelines_passed["Vol_W3>W1"] = True
+                    score += SCORE_VOLUME_GUIDELINE
+                    
+                if length >= 6 and 5 in avg_vols and 3 in avg_vols and avg_vols[5] <= avg_vols[3]: 
+                    guidelines_passed["Vol_W5<=W3"] = True
+                    score += SCORE_VOLUME_GUIDELINE
+                elif length >= 6 and 5 in avg_vols and 3 in avg_vols: 
+                    guidelines_passed["Vol_W5<=W3"] = False
+                # Check if correction volumes are less than impulse volumes (guideline)
+                corr_vol_ok = not ((length >= 3 and 2 in avg_vols and 1 in avg_vols and avg_vols[2] >= avg_vols[1]) or 
+                                   (length >= 5 and 4 in avg_vols and 3 in avg_vols and avg_vols[4] >= avg_vols[3]))
                 guidelines_passed["Vol_Corr<Imp"] = corr_vol_ok; score += SCORE_VOLUME_GUIDELINE * corr_vol_ok
             else: guidelines_passed["Vol_W3>W1"] = guidelines_passed["Vol_W5<=W3"] = guidelines_passed["Vol_Corr<Imp"] = False
-        if not rules_passed["W2_Ret"] or not rules_passed["W4_Overlap"] or not rules_passed["W3_Shortest"]: return -1
+            
+        # Check if all essential Elliott Wave rules are satisfied
+        if not rules_passed["W2_Ret"] or not rules_passed["W4_Overlap"] or not rules_passed["W3_Shortest"]: 
+            print("  Failed essential Elliott Wave rules check")
+            return -1
         return score, rules_passed, guidelines_passed, fib_details, vol_details
 
     for i in range(len(wave_points) - 2): # Main loop through points
@@ -414,10 +598,25 @@ def find_elliott_waves(wave_points, data_full):
                     if (is_up and p[k]['High'] <= p[k-1]['High']) or (not is_up and p[k]['Low'] >= p[k-1]['Low']): correct_direction = False
                 else: # Corrective 4
                     if (is_up and p[k]['Low'] >= p[k-1]['Low']) or (not is_up and p[k]['High'] <= p[k-1]['High']): correct_direction = False
-                if not correct_direction: p.pop(k); break
-                score_result_extended = score_sequence({idx: pt for idx, pt in p.items() if idx <= k}, is_up, k+1, data_full)
-                if isinstance(score_result_extended, int) and score_result_extended == -1: p.pop(k); break
-                else: current_best_len_for_i = k + 1
+                if not correct_direction: 
+                    p.pop(k)
+                    break
+                    
+                # Create a subset of points up to the current wave
+                points_subset = {idx: pt for idx, pt in p.items() if idx <= k}
+                
+                # Score the sequence with proper error handling for incomplete waves
+                try:
+                    score_result_extended = score_sequence(points_subset, is_up, k+1, data_full)
+                except KeyError as e:
+                    print(f"  KeyError in score_sequence for wave {k+1}: {e}")
+                    score_result_extended = -1  # Invalid sequence due to missing required points
+                    
+                if isinstance(score_result_extended, int) and score_result_extended == -1: 
+                    p.pop(k)
+                    break
+                else: 
+                    current_best_len_for_i = k + 1
 
         if current_best_len_for_i >= 3:
             final_p = {idx: pt for idx, pt in p.items() if idx < current_best_len_for_i}
@@ -671,7 +870,16 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
                  name=f"target_box_{target_wave_label}",  # Add a name for identification
              )
              basis_date_str = basis_point.name.strftime('%Y-%m-%d') if basis_point is not None and pd.notna(basis_point.name) else "N/A"
-             basis_text = basis_info_override if basis_info_override else f"(Basis: W{projection_basis_label} {basis_date_str})"
+             # Create a more informative basis text for traders
+             if basis_info_override:
+                 basis_text = basis_info_override
+             else:
+                 # For wave projections, show the date and price level of the basis point
+                 basis_price = basis_point['Close'] if basis_point is not None else None
+                 if basis_price is not None:
+                     basis_text = f"(Basis: W{projection_basis_label} {basis_date_str} @ {basis_price:.2f})"
+                 else:
+                     basis_text = f"(Basis: W{projection_basis_label} {basis_date_str})"
              
              # Update annotation text to include percentage changes
              price_range_text = f"{target_low:.2f}{pct_change_low} - {target_high:.2f}{pct_change_high}"
@@ -700,61 +908,438 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
             print("  Projecting W2 (Primary) -> Est. W3...")
             p0_hl = p0['Low'] if is_impulse_up else p0['High']; p1_hl = p1['High'] if is_impulse_up else p1['Low']
             ret2 = calculate_fibonacci_retracements(p0_hl, p1_hl)
-            w2_t1, w2_t2 = ret2.get(0.500), ret2.get(0.618)
-            center_w2 = draw_target_box("W2", w2_t1, w2_t2, "255, 0, 0", offset_primary, "50-61.8% W1 Ret", p1, primary=True, **common_args)
+            # Retroceso típico de Onda 2: 50%, 61.8% o 76.4% de Onda 1
+            w2_t1, w2_t2 = ret2.get(0.500), ret2.get(0.764)
+            if w2_t1 is None or w2_t2 is None:
+                print(f"  Warning: Invalid target prices for W2: low={w2_t1}, high={w2_t2}")
+                w2_t1, w2_t2 = p1_hl * 0.5, p1_hl * 0.764
+            center_w2 = draw_target_box("W2", w2_t1, w2_t2, "255, 0, 0", offset_primary, "50-76.4% W1 Ret", p1, primary=True, **common_args)
             if center_w2:
-                hypo_p2_price = center_w2[1]; ext3 = calculate_fibonacci_extensions(p0_hl, p1_hl, hypo_p2_price)
+                hypo_p2_price = center_w2[1]
+                
+                # Print debug info to verify direction
+                print(f"  DEBUG: is_impulse_up={is_impulse_up}, p0_hl={p0_hl}, p1_hl={p1_hl}, hypo_p2_price={hypo_p2_price}")
+                
+                # Proyección típica de Onda 3: Extensión del 161.8% del tamaño de la Onda 1
+                # Get ATR value for volatility-adjusted targets if available
+                atr_value = None
+                if 'ATR' in data.columns and not data['ATR'].isnull().all():
+                    atr_value = data['ATR'].iloc[-1]
+                    print(f"  Trader insight: Using current ATR ({atr_value:.2f}) to adjust target zones")
+                
+                # Calculate Wave 3 extension in the direction of Wave 1 with ATR adjustment
+                ext3 = calculate_fibonacci_extensions(p0_hl, p1_hl, hypo_p2_price, atr_value)
+                
+                # For uptrend: W3 should be higher than W1
+                # For downtrend: W3 should be lower than W1
                 w3_t1s, w3_t2s = ext3.get(1.618), ext3.get(2.618)
+                
+                # Handle potential None values from Fibonacci calculations
+                if w3_t1s is None or w3_t2s is None:
+                    print(f"  Warning: Unable to calculate valid W3 targets. Using fallback values.")
+                    # Fallback: use simple percentage extensions based on W1 length
+                    w1_length = abs(p1_hl - p0_hl)
+                    direction = 1 if is_impulse_up else -1
+                    w3_t1s = hypo_p2_price + (w1_length * 1.618 * direction)
+                    w3_t2s = hypo_p2_price + (w1_length * 2.618 * direction)
+                
+                # Ensure targets are ordered correctly (lower value first for drawing)
+                if w3_t1s is not None and w3_t2s is not None and w3_t1s > w3_t2s:
+                    w3_t1s, w3_t2s = w3_t2s, w3_t1s
+                    
                 w3_start_date = center_w2[0]
-                center_w3 = draw_target_box("W3", w3_t1s, w3_t2s, "0, 200, 0", offset_secondary, "161.8-261.8% W1 Ext (from Est. W2)", p1, primary=False, basis_info_override="(Est. from Proj. W2)", custom_start_date=w3_start_date, **common_args)
+                center_w3 = draw_target_box("W3", w3_t1s, w3_t2s, "0, 200, 0", offset_secondary, 
+                                          "161.8-261.8% W1 Ext", p1, 
+                                          primary=False, basis_info_override="(Est. from Proj. W2)", 
+                                          custom_start_date=w3_start_date, **common_args)
 
         # --- If W2 finished -> Project W3 (Primary), estimate W4, W5 (Secondary) ---
         elif current_label_num == 2 and p0 is not None and p1 is not None and p2 is not None:
             print("  Projecting W3 (Primary) -> Est. W4 -> Est. W5...")
             p0_hl = p0['Low'] if is_impulse_up else p0['High']; p1_hl = p1['High'] if is_impulse_up else p1['Low']
-            ext3 = calculate_fibonacci_extensions(p0_hl, p1_hl, p2['Close'])
-            w3_t1, w3_t2 = ext3.get(1.618), ext3.get(2.618) # Common W3 targets
-            center_w3 = draw_target_box("W3", w3_t1, w3_t2, "0, 200, 0", offset_primary, "161.8-261.8% W1 Ext", p2, primary=True, **common_args)
+            p2_close = p2['Close']
+            
+            # Calculate W1 and W2 length and time for proportions
+            w1_length = abs(p1_hl - p0_hl)
+            w2_length = abs(p2_close - p1_hl)
+            w2_w1_ratio = w2_length / w1_length if w1_length > 0 else 0
+            
+            # Get ATR value for volatility-adjusted targets if available
+            atr_value = None
+            if 'ATR' in data.columns and not data['ATR'].isnull().all():
+                atr_value = data['ATR'].iloc[-1]
+                print(f"  Trader insight: Using current ATR ({atr_value:.2f}) to adjust target zones")
+            
+            # Trader thinking: W2 depth affects W3 projection
+            # Deeper W2 often leads to stronger W3
+            w3_min_ext = 1.618  # Base extension
+            w3_max_ext = 2.618  # Base maximum
+            
+            # Adjust W3 projection based on W2 depth
+            if w2_w1_ratio > 0.618:  # Deep W2
+                print("  Trader insight: Deep W2 (>61.8%) suggests potentially stronger W3")
+                w3_min_ext = 1.618
+                w3_max_ext = 3.618  # Extend upper target for deep W2
+            elif w2_w1_ratio < 0.382:  # Shallow W2
+                print("  Trader insight: Shallow W2 (<38.2%) may lead to moderate W3")
+                w3_min_ext = 1.382
+                w3_max_ext = 2.0
+            
+            # Proyección típica de Onda 3: Extensión del 161.8% del tamaño de la Onda 1
+            # But adjusted based on W2 characteristics and market volatility
+            print(f"  DEBUG: is_impulse_up={is_impulse_up}, p0_hl={p0_hl}, p1_hl={p1_hl}, p2_close={p2_close}")
+            
+            # Calculate Wave 3 extension in the direction of Wave 1 with ATR adjustment
+            ext3 = calculate_fibonacci_extensions(p0_hl, p1_hl, p2_close, atr_value)
+            
+            # Get the extension targets based on W2 depth
+            w3_t1, w3_t2 = ext3.get(w3_min_ext), ext3.get(w3_max_ext)
+            
+            # Handle potential None values from Fibonacci calculations
+            if w3_t1 is None or w3_t2 is None:
+                print(f"  Warning: Unable to calculate valid W3 targets. Using fallback values.")
+                # Fallback: use simple percentage extensions based on W1 length
+                w1_length = abs(p1_hl - p0_hl)
+                direction = 1 if is_impulse_up else -1
+                w3_t1 = p2_close + (w1_length * w3_min_ext * direction)
+                w3_t2 = p2_close + (w1_length * w3_max_ext * direction)
+            
+            # Ensure targets are ordered correctly (lower value first for drawing)
+            if w3_t1 is not None and w3_t2 is not None and w3_t1 > w3_t2:
+                w3_t1, w3_t2 = w3_t2, w3_t1
+            center_w3 = draw_target_box("W3", w3_t1, w3_t2, "0, 200, 0", offset_primary, 
+                                       f"{w3_min_ext}-{w3_max_ext}x W1 Ext", p2, primary=True, **common_args)
+            
             if center_w3:
                 hypo_p3_price = center_w3[1]; p2_hl = p2['Low'] if is_impulse_up else p2['High']
-                ret4 = calculate_fibonacci_retracements(p2_hl, hypo_p3_price)
-                # FLEXIBILITY: Widened W4 target zone
-                w4_t1s, w4_t2s = ret4.get(0.236), ret4.get(0.500) # Widen to 23.6%-50.0%
+                
+                # Trader thinking: If W2 was deep, W4 is likely shallow (alternation principle)
+                w4_min_ret = 0.236 if w2_w1_ratio > 0.5 else 0.382
+                w4_max_ret = 0.382 if w2_w1_ratio > 0.5 else 0.5
+                
+                print(f"  Trader insight: W2/W1 ratio = {w2_w1_ratio:.3f}, projecting W4 retracement at {w4_min_ret}-{w4_max_ret}")
+                
+                # Get ATR value for volatility-adjusted targets if available
+                atr_value = None
+                if 'ATR' in data.columns and not data['ATR'].isnull().all():
+                    atr_value = data['ATR'].iloc[-1]
+                    print(f"  Trader insight: Using current ATR ({atr_value:.2f}) to adjust W4 target zone")
+                
+                # Calculate retracements with ATR adjustment for more realistic targets
+                ret4 = calculate_fibonacci_retracements(p2_hl, hypo_p3_price, atr_value)
+                # Retroceso típico de Onda 4: 38.2% o 50% de la Onda 3, adjusted for alternation
+                w4_t1s, w4_t2s = ret4.get(w4_min_ret), ret4.get(w4_max_ret)
+                
+                # Check that W4 doesn't overlap with W1 (Elliott Wave rule)
+                w1_end_level = p1_hl
+                if (is_impulse_up and w4_t2s <= w1_end_level) or (not is_impulse_up and w4_t2s >= w1_end_level):
+                    print("  Trader alert: Adjusting W4 target to avoid W1 overlap (Elliott Wave rule)")
+                    # Adjust W4 to avoid overlap
+                    buffer = abs(w1_end_level - p2_hl) * 0.05  # 5% buffer
+                    if is_impulse_up:
+                        w4_t2s = max(w4_t2s, w1_end_level + buffer)
+                    else:
+                        w4_t2s = min(w4_t2s, w1_end_level - buffer)
+                
                 w4_start_date = center_w3[0]
-                center_w4 = draw_target_box("W4", w4_t1s, w4_t2s, "255, 165, 0", offset_secondary, "23.6-50.0% W3 Ret (Est.)", p2, primary=False, basis_info_override="(Est. from Proj. W3)", custom_start_date=w4_start_date, **common_args)
+                center_w4 = draw_target_box("W4", w4_t1s, w4_t2s, "255, 165, 0", offset_secondary, 
+                                           f"{w4_min_ret*100:.1f}-{w4_max_ret*100:.1f}% W3 Ret (Est.)", p2, 
+                                           primary=False, basis_info_override="(Est. from Proj. W3)", 
+                                           custom_start_date=w4_start_date, **common_args)
+                
                 if center_w4:
                     hypo_p4_price = center_w4[1]
-                    ext5 = calculate_fibonacci_extensions(p0_hl, p1_hl, hypo_p4_price)
-                    # FLEXIBILITY: Widened W5 target zone
-                    w5_t1s, w5_t2s = ext5.get(0.618), ext5.get(1.618) # Widen to 61.8%-161.8% W1 length
+                    
+                    # Trader thinking: W5 projection based on overall wave structure
+                    # For Wave 5, calculate the distance from Wave 0 to Wave 3 (the 1-3 range)
+                    w1_to_w3_range = hypo_p3_price - p0_hl
+                    w1_length = abs(p1_hl - p0_hl)
+                    
+                    # Determine direction multiplier based on impulse direction
+                    direction = 1 if is_impulse_up else -1
+                    
+                    # Extensión de Onda 5: 61.8%, 100% o 161.8% del recorrido 1-3
+                    # Trader insight: W5 often relates to both W1 length and the overall pattern
+                    if abs(hypo_p3_price - p2_close) > 2 * w1_length:  # If W3 is extended
+                        print("  Trader insight: Extended W3 detected, W5 likely to be shorter (equality with W1)")
+                        # When W3 is extended, W5 often equals W1
+                        w5_t1s = hypo_p4_price + (w1_length * 0.618 * direction)
+                        w5_t2s = hypo_p4_price + (w1_length * 1.0 * direction)
+                        w5_label = "61.8-100% of W1 (Est.)"
+                    else:  # Normal W3
+                        print("  Trader insight: Normal W3, W5 projected using W1-W3 range")
+                        # Use the sign of w1_to_w3_range to determine direction
+                        w5_t1s = hypo_p4_price + (abs(w1_to_w3_range) * 0.618 * direction)
+                        w5_t2s = hypo_p4_price + (abs(w1_to_w3_range) * 1.618 * direction)
+                        w5_label = "61.8-161.8% W1-W3 Ext (Est.)"
+                        
+                    # Ensure targets are ordered correctly (lower value first for drawing)
+                    if w5_t1s is not None and w5_t2s is not None and w5_t1s > w5_t2s:
+                        w5_t1s, w5_t2s = w5_t2s, w5_t1s
+                    
                     w5_start_date = center_w4[0]
-                    center_w5 = draw_target_box("W5", w5_t1s, w5_t2s, "173, 255, 47", offset_tertiary, "61.8-161.8% W1 Ext (Est.)", p2, primary=False, basis_info_override="(Est. from Est. W4)", custom_start_date=w5_start_date, **common_args)
+                    center_w5 = draw_target_box("W5", w5_t1s, w5_t2s, "173, 255, 47", offset_tertiary, 
+                                               w5_label, p2, primary=False, 
+                                               basis_info_override="(Est. from Est. W4)", 
+                                               custom_start_date=w5_start_date, **common_args)
 
         # --- If W3 finished -> Project W4 (Primary), estimate W5 (Secondary) ---
         elif current_label_num == 3 and p0 is not None and p1 is not None and p2 is not None and p3 is not None:
             print("  Projecting W4 (Primary) -> Est. W5...")
-            p2_hl = p2['Low'] if is_impulse_up else p2['High']; p3_hl = p3['High'] if is_impulse_up else p3['Low']
-            ret4 = calculate_fibonacci_retracements(p2_hl, p3_hl)
-             # FLEXIBILITY: Widened W4 target zone
-            w4_t1, w4_t2 = ret4.get(0.236), ret4.get(0.500) # Widen to 23.6%-50.0%
-            center_w4 = draw_target_box("W4", w4_t1, w4_t2, "255, 165, 0", offset_primary, "23.6-50.0% W3 Ret", p3, primary=True, **common_args)
+            p0_hl = p0['Low'] if is_impulse_up else p0['High']
+            p1_hl = p1['High'] if is_impulse_up else p1['Low']
+            p2_hl = p2['Low'] if is_impulse_up else p2['High']
+            p3_hl = p3['High'] if is_impulse_up else p3['Low']
+            
+            # Analyze wave characteristics for trader insights
+            w1_length = abs(p1_hl - p0_hl)
+            w2_length = abs(p2_hl - p1_hl)
+            w3_length = abs(p3_hl - p2_hl)
+            w3_w1_ratio = w3_length / w1_length if w1_length > 0 else 0
+            w2_w1_ratio = w2_length / w1_length if w1_length > 0 else 0
+            
+            print(f"  Trader analysis: W3/W1 ratio = {w3_w1_ratio:.2f}, W2/W1 ratio = {w2_w1_ratio:.2f}")
+            
+            # Trader thinking: W4 projection based on W2 and W3 characteristics
+            # Alternation principle: If W2 was deep, W4 should be shallow and vice versa
+            # W4 shouldn't overlap W1 (Elliott Wave rule)
+            
+            # Determine W4 retracement levels based on alternation principle
+            if w2_w1_ratio > 0.5:  # Deep W2
+                print("  Trader insight: Deep W2 suggests shallow W4 (alternation principle)")
+                w4_min_ret = 0.236
+                w4_max_ret = 0.382
+            elif w2_w1_ratio < 0.382:  # Shallow W2
+                print("  Trader insight: Shallow W2 suggests deeper W4 (alternation principle)")
+                w4_min_ret = 0.382
+                w4_max_ret = 0.5
+            else:  # Normal W2
+                print("  Trader insight: Normal W2 suggests balanced W4 retracement")
+                w4_min_ret = 0.236
+                w4_max_ret = 0.382
+            
+            # If W3 is extended, W4 tends to be more complex but still respects Fibonacci levels
+            if w3_w1_ratio > 1.618:
+                print("  Trader insight: Extended W3 (>1.618 × W1) may lead to complex W4 correction")
+            
+            # Get ATR value for volatility-adjusted targets if available
+            atr_value = None
+            if 'ATR' in data.columns and not data['ATR'].isnull().all():
+                atr_value = data['ATR'].iloc[-1]
+                print(f"  Trader insight: Using current ATR ({atr_value:.2f}) to adjust W4 target zone")
+                
+            # Calculate retracements with ATR adjustment for more realistic targets
+            ret4 = calculate_fibonacci_retracements(p2_hl, p3_hl, atr_value)
+            w4_t1, w4_t2 = ret4.get(w4_min_ret), ret4.get(w4_max_ret)
+            
+            # Check W4 doesn't overlap W1 (Elliott Wave rule)
+            w1_end_level = p1_hl
+            if (is_impulse_up and w4_t2 <= w1_end_level) or (not is_impulse_up and w4_t2 >= w1_end_level):
+                print("  Trader alert: Adjusting W4 target to avoid W1 overlap (Elliott Wave rule)")
+                # Adjust W4 to avoid overlap
+                buffer = abs(w1_end_level - p2_hl) * 0.05  # 5% buffer
+                if is_impulse_up:
+                    w4_t2 = max(w4_t2, w1_end_level + buffer)
+                else:
+                    w4_t2 = min(w4_t2, w1_end_level - buffer)
+            
+            center_w4 = draw_target_box("W4", w4_t1, w4_t2, "255, 165, 0", offset_primary, 
+                                       f"{w4_min_ret*100:.1f}-{w4_max_ret*100:.1f}% W3 Ret", p3, primary=True, **common_args)
+            
             if center_w4:
-                hypo_p4_price = center_w4[1]; p0_hl = p0['Low'] if is_impulse_up else p0['High']; p1_hl = p1['High'] if is_impulse_up else p1['Low']
-                ext5 = calculate_fibonacci_extensions(p0_hl, p1_hl, hypo_p4_price)
-                # FLEXIBILITY: Widened W5 target zone
-                w5_t1s, w5_t2s = ext5.get(0.618), ext5.get(1.618) # Widen to 61.8%-161.8% W1 length
+                hypo_p4_price = center_w4[1]
+                
+                # Trader thinking: W5 projection based on overall wave structure
+                # W5 projection depends on whether W3 is extended
+                
+                # Calculate W1-W3 range for potential W5 projection
+                w1_to_w3_range = p3_hl - p0_hl
+                
+                # Determine direction multiplier based on impulse direction
+                direction = 1 if is_impulse_up else -1
+                
+                # Get ATR value for volatility-adjusted targets if available
+                atr_value = None
+                if 'ATR' in data.columns and not data['ATR'].isnull().all():
+                    atr_value = data['ATR'].iloc[-1]
+                    print(f"  Trader insight: Using current ATR ({atr_value:.2f}) to adjust W5 target zone")
+                
+                # Determine W5 projection based on wave structure
+                if w3_w1_ratio > 1.618:  # W3 is extended
+                    print("  Trader insight: W3 was extended, W5 likely equals W1 (equality principle)")
+                    # When W3 is extended, W5 often equals W1 (equality principle)
+                    
+                    # Use Fibonacci extensions with ATR adjustment for more realistic targets
+                    ext5 = calculate_fibonacci_extensions(p0_hl, p1_hl, hypo_p4_price, atr_value)
+                    w5_t1s = ext5.get(0.618)  # 61.8% of W1
+                    w5_t2s = ext5.get(1.0)    # 100% of W1
+                    w5_label = "61.8-100% of W1 (Est.)"
+                else:  # Normal W3
+                    print("  Trader insight: Normal W3, W5 projected using W1-W3 range")
+                    # When W3 is not extended, W5 often relates to the entire W1-W3 range
+                    
+                    # Calculate tiered take-profit targets for practical trading
+                    # TP1, TP2, TP3 based on the W1-W3 range
+                    ext5 = calculate_fibonacci_extensions(p0_hl, p3_hl, hypo_p4_price, atr_value)
+                    w5_t1s = ext5.get(TP_LEVELS["TP1"] * 0.618)  # 61.8% of TP1
+                    w5_t2s = ext5.get(TP_LEVELS["TP2"])  # TP2 (161.8%)
+                    w5_label = "61.8-161.8% W1-W3 Ext (Est.)"
+                    
+                # Ensure targets are ordered correctly (lower value first for drawing)
+                if w5_t1s is not None and w5_t2s is not None and w5_t1s > w5_t2s:
+                    w5_t1s, w5_t2s = w5_t2s, w5_t1s
+                
+                # Consider market context for final W5 target
+                if current_price is not None:
+                    # If current price is near W3, adjust W5 target for potential momentum
+                    price_to_w3_ratio = abs(current_price - p3_hl) / w3_length if w3_length > 0 else 1
+                    if price_to_w3_ratio < 0.1:  # Price still near W3
+                        print("  Trader insight: Current price near W3 high, momentum may carry W5 further")
+                        # Add extended target for strong momentum (TP3)
+                        ext5 = calculate_fibonacci_extensions(p0_hl, p3_hl, hypo_p4_price, atr_value)
+                        w5_t2s = ext5.get(TP_LEVELS["TP3"])  # TP3 (261.8%)
+                        # Ensure targets are ordered correctly after adjustment
+                        if w5_t1s is not None and w5_t2s is not None and w5_t1s > w5_t2s:
+                            w5_t1s, w5_t2s = w5_t2s, w5_t1s
+                        w5_label = f"61.8-{TP_LEVELS['TP3']*100:.1f}% W1-W3 Ext (Est.)"
+                        print(f"  Trader insight: Added TP3 target at {TP_LEVELS['TP3']*100:.1f}% extension due to strong momentum")
+                
                 w5_start_date = center_w4[0]
-                center_w5 = draw_target_box("W5", w5_t1s, w5_t2s, "173, 255, 47", offset_secondary, "61.8-161.8% W1 Ext (Est.)", p3, primary=False, basis_info_override="(Est. from Proj. W4)", custom_start_date=w5_start_date, **common_args)
+                center_w5 = draw_target_box("W5", w5_t1s, w5_t2s, "173, 255, 47", offset_secondary, 
+                                           w5_label, p3, primary=False, 
+                                           basis_info_override="(Est. from Proj. W4)", 
+                                           custom_start_date=w5_start_date, **common_args)
 
         # --- If W4 finished -> Project W5 (Primary) ---
-        elif current_label_num == 4 and p0 is not None and p1 is not None and p4 is not None:
+        elif current_label_num == 4 and p0 is not None and p1 is not None and p3 is not None and p4 is not None:
             print("  Projecting W5 (Primary)...")
-            p0_hl = p0['Low'] if is_impulse_up else p0['High']; p1_hl = p1['High'] if is_impulse_up else p1['Low']
+            p0_hl = p0['Low'] if is_impulse_up else p0['High']
+            p1_hl = p1['High'] if is_impulse_up else p1['Low']
+            p2_hl = p2['Low'] if is_impulse_up else p2['High'] if p2 is not None else None
+            p3_hl = p3['High'] if is_impulse_up else p3['Low']
             p4_close = p4['Close']
-            ext5 = calculate_fibonacci_extensions(p0_hl, p1_hl, p4_close)
-            # FLEXIBILITY: Widened W5 target zone
-            w5_t1, w5_t2 = ext5.get(0.618), ext5.get(1.618) # Widen to 61.8%-161.8% W1 length
-            center_w5 = draw_target_box("W5", w5_t1, w5_t2, "173, 255, 47", offset_primary, "61.8-161.8% W1 Ext", p4, primary=True, **common_args)
+            
+            # Analyze wave characteristics for trader insights
+            w1_length = abs(p1_hl - p0_hl)
+            w3_length = abs(p3_hl - (p2_hl if p2_hl is not None else p1_hl))
+            w3_w1_ratio = w3_length / w1_length if w1_length > 0 else 0
+            
+            # Calculate the full impulse range so far
+            impulse_range_so_far = p3_hl - p0_hl
+            
+            print(f"  Trader analysis: W3/W1 ratio = {w3_w1_ratio:.2f}, W4 complete, projecting W5")
+            
+            # Trader thinking: W5 projection based on overall wave structure and market context
+            # Key considerations:
+            # 1. Is W3 extended? If yes, W5 often equals W1 (equality principle)
+            # 2. Has the impulse already traveled far? If yes, W5 might be truncated
+            # 3. Market momentum and volume characteristics
+            
+            # Get ATR value for volatility-adjusted targets if available
+            atr_value = None
+            if 'ATR' in data.columns and not data['ATR'].isnull().all():
+                atr_value = data['ATR'].iloc[-1]
+                print(f"  Trader insight: Using current ATR ({atr_value:.2f}) to adjust W5 target zone")
+            
+            # Determine direction multiplier based on impulse direction
+            direction = 1 if is_impulse_up else -1
+            
+            # Determine W5 projection based on wave structure
+            if w3_w1_ratio > 1.618:  # W3 is extended
+                print("  Trader insight: W3 was extended, W5 likely equals W1 (equality principle)")
+                # When W3 is extended, W5 often equals W1 (equality principle)
+                
+                # Use Fibonacci extensions with ATR adjustment for more realistic targets
+                ext5 = calculate_fibonacci_extensions(p0_hl, p1_hl, p4_close, atr_value)
+                w5_t1 = ext5.get(0.618)  # 61.8% of W1
+                w5_t2 = ext5.get(1.0)    # 100% of W1
+                w5_label = "61.8-100% of W1"
+                
+                # Check for potential truncation risk
+                if abs(p4_close - p3_hl) > 0.5 * w3_length:  # Deep W4 correction
+                    print("  Trader caution: Deep W4 correction may lead to truncated W5")
+                    # Add more conservative target
+                    w5_t1 = ext5.get(0.5)  # 50% of W1
+                    w5_label = "50-100% of W1"
+            else:  # W3 is not extended
+                print("  Trader insight: W3 not strongly extended, projecting W5 using Fibonacci relationships")
+                
+                # Calculate tiered take-profit targets for practical trading
+                # TP1, TP2, TP3 based on the impulse range so far
+                ext5 = calculate_fibonacci_extensions(p0_hl, p3_hl, p4_close, atr_value)
+                w5_t1 = ext5.get(TP_LEVELS["TP1"] * 0.618)  # 61.8% of TP1
+                w5_t2 = ext5.get(TP_LEVELS["TP1"])          # TP1 (100%)
+                w5_label = "61.8-100% W1-W3 Ext"
+                
+                # Check for strong momentum
+                if has_volume and 'RSI' in data.columns and not data['RSI'].isnull().all():
+                    recent_rsi = data['RSI'].iloc[-5:].mean() if len(data) >= 5 else data['RSI'].iloc[-1]
+                    if (is_impulse_up and recent_rsi > 60) or (not is_impulse_up and recent_rsi < 40):
+                        print("  Trader insight: Strong momentum detected, extending W5 target to TP2")
+                        # Use TP2 for stronger momentum
+                        w5_t2 = ext5.get(TP_LEVELS["TP2"])  # TP2 (161.8%)
+                        w5_label = f"61.8-{TP_LEVELS['TP2']*100:.1f}% W1-W3 Ext"
+                        
+                        # If momentum is extremely strong, add TP3 as a potential target
+                        if (is_impulse_up and recent_rsi > 70) or (not is_impulse_up and recent_rsi < 30):
+                            print(f"  Trader insight: Extremely strong momentum, adding TP3 target at {TP_LEVELS['TP3']*100:.1f}%")
+                            w5_t2 = ext5.get(TP_LEVELS["TP3"])  # TP3 (261.8%)
+                            w5_label = f"61.8-{TP_LEVELS['TP3']*100:.1f}% W1-W3 Ext"
+            
+            # Ensure targets are ordered correctly (lower value first for drawing)
+            if w5_t1 is not None and w5_t2 is not None and w5_t1 > w5_t2:
+                w5_t1, w5_t2 = w5_t2, w5_t1
+                
+            # Final check for psychological levels and round numbers
+            # Round targets to psychologically significant levels if they're not None
+            if w5_t1 is not None and w5_t2 is not None:
+                try:
+                    price_magnitude = 10 ** (int(math.log10(abs(w5_t1))) - 1) if w5_t1 != 0 else 1
+                    w5_t1 = round(w5_t1 / price_magnitude) * price_magnitude
+                    w5_t2 = round(w5_t2 / price_magnitude) * price_magnitude
+                except Exception as e:
+                    print(f"  Warning: Could not round price targets: {e}")
+            
+            center_w5 = draw_target_box("W5", w5_t1, w5_t2, "173, 255, 47", offset_primary, 
+                                       w5_label, p4, primary=True, **common_args)
+            
+            # Determine W5 projection based on wave structure
+            if w3_w1_ratio > 1.618:  # W3 is extended
+                print("  Trader insight: W3 was extended, W5 likely equals W1 (equality principle)")
+                # When W3 is extended, W5 often equals W1 (equality principle)
+                w5_t1 = p4_close + (w1_length * 0.618)
+                w5_t2 = p4_close + (w1_length * 1.0)
+                w5_label = "61.8-100% of W1"
+                
+                # Check for potential truncation risk
+                if abs(p4_close - p3_hl) > 0.5 * w3_length:  # Deep W4 correction
+                    print("  Trader caution: Deep W4 correction may lead to truncated W5")
+                    # Add more conservative target
+                    w5_t1 = p4_close + (w1_length * 0.5)
+                    w5_label = "50-100% of W1"
+            else:  # W3 is not extended
+                print("  Trader insight: W3 not strongly extended, projecting W5 using Fibonacci relationships")
+                # Standard Fibonacci projections
+                w5_t1 = p4_close + (impulse_range_so_far * 0.618)
+                w5_t2 = p4_close + (impulse_range_so_far * 1.0)
+                w5_label = "61.8-100% W1-W3 Ext"
+                
+                # Check for strong momentum
+                if has_volume and 'RSI' in data.columns and not data['RSI'].isnull().all():
+                    recent_rsi = data['RSI'].iloc[-5:].mean() if len(data) >= 5 else data['RSI'].iloc[-1]
+                    if (is_impulse_up and recent_rsi > 60) or (not is_impulse_up and recent_rsi < 40):
+                        print("  Trader insight: Strong momentum detected, extending W5 target")
+                        w5_t2 = p4_close + (impulse_range_so_far * 1.618)
+                        w5_label = "61.8-161.8% W1-W3 Ext"
+            
+            # Final check for psychological levels and round numbers
+            # Round targets to psychologically significant levels
+            price_magnitude = 10 ** (int(math.log10(abs(w5_t1))) - 1) if w5_t1 != 0 else 1
+            w5_t1 = round(w5_t1 / price_magnitude) * price_magnitude
+            w5_t2 = round(w5_t2 / price_magnitude) * price_magnitude
+            
+            center_w5 = draw_target_box("W5", w5_t1, w5_t2, "173, 255, 47", offset_primary, 
+                                       w5_label, p4, primary=True, **common_args)
 
         # --- <<< START OF MODIFIED/NEW SECTION FOR ABC FORECAST >>> ---
         elif current_label_num == 5 and p0 is not None and p5 is not None:
@@ -763,12 +1348,22 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
             # --- Project Wave A (Primary) ---
             p0_hl = p0['Low'] if is_impulse_up else p0['High'] # Start of impulse
             p5_hl = p5['High'] if is_impulse_up else p5['Low'] # End of impulse (basis point)
+            # For a zigzag correction after an impulse, Wave A is typically a 50% to 78.6% retracement
+            # Calculate the entire impulse range
+            impulse_range = p5_hl - p0_hl
             retA = calculate_fibonacci_retracements(p0_hl, p5_hl)
-            # FLEXIBILITY: Widened Wave A target zone
-            wa_t1, wa_t2 = retA.get(0.236), retA.get(0.618) # Widen to 23.6%-61.8% retrace of 0-5
+            # Correcciones A-B-C: Retrocesos comunes de 50%-61.8%-78.6% respecto al movimiento anterior
+            wa_t1, wa_t2 = retA.get(0.500), retA.get(0.786)
+            
+            # Round targets to psychologically significant levels
+            wa_t1 = round(wa_t1 * 20) / 20  # Round to nearest 0.05
+            wa_t2 = round(wa_t2 * 20) / 20  # Round to nearest 0.05
+            
+            # Create a more descriptive label for Wave A
+            wave_a_description = f"50-78.6% Impulse Ret ({abs(impulse_range):.2f} pts)"
             center_wa = draw_target_box(
                 "Wave A", wa_t1, wa_t2, "255, 105, 180", # Pink
-                offset_primary, "23.6-61.8% Impulse Ret", # Updated label
+                offset_primary, wave_a_description,
                 p5, # Basis point is P5
                 primary=True, **common_args
             )
@@ -780,12 +1375,19 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
                 # --- Estimate Wave B (Secondary) ---
                 # Wave B typically retraces Wave A (the move from P5 to hypo_pA_price)
                 retB = calculate_fibonacci_retracements(p5_hl, hypo_pA_price) # Retrace the hypothetical Wave A move
-                wb_t1s, wb_t2s = retB.get(0.382), retB.get(0.618) # Keep 38.2-61.8% retrace of A for B estimate
+                # Correcciones A-B-C: Retrocesos comunes de 50%-61.8%-78.6% respecto al movimiento anterior
+                wb_t1s, wb_t2s = retB.get(0.500), retB.get(0.618)
+                
+                # Round targets to psychologically significant levels
+                wb_t1s = round(wb_t1s * 20) / 20  # Round to nearest 0.05
+                wb_t2s = round(wb_t2s * 20) / 20  # Round to nearest 0.05
+                
+                wave_b_description = f"50-61.8% Retracement of Wave A"
                 center_wb = draw_target_box(
                     "Wave B", wb_t1s, wb_t2s, "135, 206, 250", # Sky Blue
-                    offset_secondary, "38.2-61.8% Ret (Est. WA)",
+                    offset_secondary, wave_b_description,
                     p5, # Keep P5 as conceptual basis point for the correction start
-                    primary=False, basis_info_override="(Est. from Proj. WA)",
+                    primary=False, basis_info_override="(From Wave A Est.)",
                     custom_start_date=wa_start_date, # Start B box after A box midpoint
                     **common_args
                 )
@@ -801,58 +1403,26 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
 
                     if not pd.isna(hypo_wa_move):
                         # Project WC downwards (if impulse up) or upwards (if impulse down) from hypo_pB_price
-                        # FLEXIBILITY: Widen Wave C target zone based on Wave A extension
-                        # Target 1: C = 61.8% of A
-                        wc_t1s = hypo_pB_price + (hypo_wa_move * 0.618)
-                        # Target 2: C = 161.8% of A
+                        # Correcciones A-B-C: Retrocesos comunes de 50%-61.8%-78.6% respecto al movimiento anterior
+                        # Target 1: C = 100% of A (equal to A)
+                        wc_t1s = hypo_pB_price + (hypo_wa_move * 1.0)
+                        
+                        # For Wave C, consider market context - if we're in a strong trend, C might extend further
+                        # Target 2: C = 161.8% of A (extension of A)
                         wc_t2s = hypo_pB_price + (hypo_wa_move * 1.618)
-
+                        
+                        # Round targets to psychologically significant levels (important for trader psychology)
+                        wc_t1s = round(wc_t1s * 20) / 20  # Round to nearest 0.05
+                        wc_t2s = round(wc_t2s * 20) / 20  # Round to nearest 0.05
+                        wave_c_description = f"100-161.8% of Wave A ({abs(hypo_wa_move):.2f} pts)"
                         center_wc = draw_target_box(
                             "Wave C", wc_t1s, wc_t2s, "255, 0, 0", # Red
-                            offset_tertiary, "61.8-161.8% Est. WA Ext", # Updated label
+                            offset_tertiary, wave_c_description,
                             p5, # Keep P5 as conceptual basis
-                            primary=False, basis_info_override="(Est. from Est. WB)",
+                            primary=False, basis_info_override="(From Wave B Est.)",
                             custom_start_date=wb_start_date, # Start C box after B box midpoint
                             **common_args
                         )
-                    else:
-                        print("  Warning: Could not estimate Wave C targets because hypothetical Wave A move calculation failed.")
-        # --- <<< END OF MODIFIED/NEW SECTION FOR ABC FORECAST >>> ---
-
-        # --- If Correction A finished -> Project Wave B (Primary), estimate Wave C (Secondary) ---
-        # (Logic remains largely the same, acts as refinement)
-        elif projection_basis_label == '(A?)' and details.get("correction_guess"):
-             pa = details["correction_guess"].get('A'); p5 = points.get(5)
-             if pa is not None and p5 is not None:
-                 print("  Refining: Projecting Wave B (Primary from A?) -> Est. Wave C...")
-                 p5_hl = p5['High'] if is_impulse_up else p5['Low']; pa_hl = pa['Low'] if is_impulse_up else pa['High']
-                 retB = calculate_fibonacci_retracements(p5_hl, pa_hl)
-                 wb_t1, wb_t2 = retB.get(0.382), retB.get(0.618) # Keep B retrace zone
-                 center_wb = draw_target_box("Wave B", wb_t1, wb_t2, "135, 206, 250", offset_primary, "38.2-61.8% WA Ret", pa, primary=True, **common_args)
-                 if center_wb:
-                     hypo_pB_price = center_wb[1]
-                     wa_start_close = p5['Close']; wa_end_close = pa['Close']
-                     if not pd.isna(wa_start_close) and not pd.isna(wa_end_close):
-                         extC = calculate_fibonacci_extensions(wa_start_close, wa_end_close, hypo_pB_price)
-                         # FLEXIBILITY: Widen C target zone
-                         wc_t1s, wc_t2s = extC.get(0.618), extC.get(1.618)
-                         wc_start_date = center_wb[0]
-                         center_wc = draw_target_box("Wave C", wc_t1s, wc_t2s, "255, 0, 0", offset_secondary, "61.8-161.8% WA Ext (Est.)", pa, primary=False, basis_info_override="(Est. from Proj. WB)", custom_start_date=wc_start_date, **common_args)
-                     else: print("  Warning: Cannot estimate Wave C as actual Wave A points have NaN close prices.")
-
-        # --- If Correction B finished -> Project Wave C (Primary) ---
-        # (Logic remains largely the same, acts as refinement)
-        elif projection_basis_label == '(B?)' and details.get("correction_guess"):
-             pb = details["correction_guess"].get('B'); pa = details["correction_guess"].get('A'); p5 = points.get(5)
-             if pb is not None and pa is not None and p5 is not None:
-                 print("  Refining: Projecting Wave C (Primary from B?)...")
-                 pb_close = pb['Close']; wa_start_close = p5['Close']; wa_end_close = pa['Close']
-                 if not pd.isna(pb_close) and not pd.isna(wa_start_close) and not pd.isna(wa_end_close):
-                     extC = calculate_fibonacci_extensions(wa_start_close, wa_end_close, pb_close)
-                      # FLEXIBILITY: Widen C target zone
-                     wc_t1, wc_t2 = extC.get(0.618), extC.get(1.618)
-                     center_wc = draw_target_box("Wave C", wc_t1, wc_t2, "255, 0, 0", offset_primary, "61.8-161.8% WA Ext", pb, primary=True, **common_args)
-                 else: print("  Warning: Cannot project Wave C as points A, B, or 5 have NaN close prices.")
 
         # Collect valid projected center points for path drawing
         temp_path_points = [projection_path_points[0]] # Start with the basis point
