@@ -570,6 +570,48 @@ def find_elliott_waves(wave_points, data_full):
                                    (length >= 5 and 4 in avg_vols and 3 in avg_vols and avg_vols[4] >= avg_vols[3]))
                 guidelines_passed["Vol_Corr<Imp"] = corr_vol_ok; score += SCORE_VOLUME_GUIDELINE * corr_vol_ok
             else: guidelines_passed["Vol_W3>W1"] = guidelines_passed["Vol_W5<=W3"] = guidelines_passed["Vol_Corr<Imp"] = False
+
+            # --- Elliott Channel Guideline ---
+            try:
+                if length >= 3:
+                    # Use classic Elliott Channel: trendline through 1-3 (lows for up, highs for down), parallel from 2 (high for up, low for down)
+                    if is_up:
+                        y1 = p[0]['Low']
+                        y3 = p[2]['Low']
+                        y2 = p[1]['High']
+                    else:
+                        y1 = p[0]['High']
+                        y3 = p[2]['High']
+                        y2 = p[1]['Low']
+                    idx1 = full_data.index.get_loc(p[0].name)
+                    idx3 = full_data.index.get_loc(p[2].name)
+                    idx2 = full_data.index.get_loc(p[1].name)
+                    slope = (y3 - y1) / (idx3 - idx1) if idx3 != idx1 else 0
+                    # Main channel line: through 1 and 3
+                    # Parallel: offset from point 2
+                    offset = y2 - (y1 + slope * (idx2 - idx1))
+                    channel_valid = True
+                    for k in range(length):
+                        idxk = full_data.index.get_loc(p[k].name)
+                        # Lower bound is main trendline, upper is parallel (for up); reverse for down
+                        base = y1 + slope * (idxk - idx1)
+                        para = base + offset
+                        price_k = p[k]['Low'] if is_up else p[k]['High']
+                        high_k = p[k]['High'] if is_up else p[k]['Low']
+                        # For up: lows above main, highs below parallel
+                        # For down: highs below main, lows above parallel
+                        if is_up:
+                            if price_k < min(base, para) or high_k > max(base, para):
+                                channel_valid = False
+                                break
+                        else:
+                            if price_k > max(base, para) or high_k < min(base, para):
+                                channel_valid = False
+                                break
+                    guidelines_passed["Channel"] = channel_valid
+                    score += SCORE_CHANNEL_HIT * int(channel_valid)
+            except Exception as e:
+                pass
             
         # Check if all essential Elliott Wave rules are satisfied
         if not rules_passed["W2_Ret"] or not rules_passed["W4_Overlap"] or not rules_passed["W3_Shortest"]: 
@@ -737,10 +779,91 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
                          annotation = dict(x=point_data.name, y=point_data['Close'], text=f"{txt}: {ratio_str}", showarrow=True, arrowhead=1, ax=10 if ay_offset < 0 else -10, ay=ay_offset, font=dict(size=9, color="yellow"), bgcolor="rgba(0,0,0,0.6)", row=1, col=1)
                          wave_annotations.append(annotation)
         add_fib_annot('2', 'W2_Ret_W1', "W2", -30 if is_up else 30); add_fib_annot('3', 'W3_Ext_W1', "W3", -35 if is_up else 35); add_fib_annot('4', 'W4_Ret_W3', "W4", 30 if is_up else -30); add_fib_annot('5', 'W5_vs_W1', "W5", -35 if is_up else 35)
-        for annot in wave_annotations: fig.add_annotation(**annot)
-        # (Channel/Invalidation plotting assumed correct from prev code...)
+        for annot in wave_annotations:
+            fig.add_annotation(**annot)
+        # --- Elliott Channel Plotting ---
+        if PLOT_CHANNELS and analysis_results.get("found_impulse", False):
+            try:
+                pts = analysis_results["details"].get("points", {})
+                p0 = pts.get(0); p1 = pts.get(1); p2 = pts.get(2)
+                if p0 is not None and p1 is not None and p2 is not None:
+                    is_up = analysis_results["details"].get("is_upward", True)
+                    if is_up:
+                        y1 = p0['Low']
+                        y3 = p2['Low']
+                        y2 = p1['High']
+                    else:
+                        y1 = p0['High']
+                        y3 = p2['High']
+                        y2 = p1['Low']
+                    x1 = p0.name
+                    x3 = p2.name
+                    x2 = p1.name
+                    idx1 = data.index.get_loc(x1)
+                    idx3 = data.index.get_loc(x3)
+                    idx2 = data.index.get_loc(x2)
+                    slope = (y3 - y1) / (idx3 - idx1) if idx3 != idx1 else 0
+                    offset = y2 - (y1 + slope * (idx2 - idx1))
+                    # Extend channel far into the future (1 year)
+                    last_date = data.index[-1]
+                    # Force extension to 1 year into the future
+                    x_end = last_date + pd.Timedelta(days=365)
+                    
+                    # Calculate the slope in terms of price per day
+                    days_between_points = (x3 - x1).days
+                    if days_between_points > 0:
+                        daily_slope = (y3 - y1) / days_between_points
+                        # Project forward using days
+                        days_to_extend = (x_end - x1).days
+                        y_main_end = y1 + (daily_slope * days_to_extend)
+                    else:
+                        # Fallback if dates are too close
+                        idx_diff = idx3 - idx1
+                        if idx_diff != 0:
+                            # Use index-based projection
+                            idx_extension = (extension_days / (last_date - data.index[0]).days) * len(data) if len(data) > 1 else extension_days
+                            idx_end = idx1 + idx_extension
+                            y_main_end = y1 + slope * (idx_end - idx1)
+                        else:
+                            # If all else fails, just extend horizontally
+                            y_main_end = y1
+                        
+                    # Parallel: offset from point 2
+                    y_para0 = y1 + offset
+                    y_para_end = y_main_end + offset
+                    
+                    # Add annotation to show channel extension
+                    fig.add_annotation(
+                        x=x_end, 
+                        y=(y_main_end + y_para_end)/2,
+                        text="Channel Extension",
+                        showarrow=True,
+                        arrowhead=1,
+                        ax=-40,
+                        ay=0,
+                        font=dict(color="orange", size=10),
+                        bgcolor="rgba(0,0,0,0.6)",
+                        row=1, col=1
+                    )
+                    # Draw channel lines - make them more prominent
+                    # Main line
+                    fig.add_shape(type="line", x0=x1, y0=y1, x1=last_date, y1=y1 + (daily_slope * (last_date - x1).days),
+                                  line=dict(color="orange", width=2), row=1, col=1)
+                    # Extension of main line
+                    fig.add_shape(type="line", x0=last_date, y0=y1 + (daily_slope * (last_date - x1).days), 
+                                  x1=x_end, y1=y_main_end,
+                                  line=dict(color="red", width=2, dash="dash"), row=1, col=1)
+                    
+                    # Parallel line
+                    fig.add_shape(type="line", x0=x1, y0=y_para0, x1=last_date, y1=y_para0 + (daily_slope * (last_date - x1).days),
+                                  line=dict(color="orange", width=2), row=1, col=1)
+                    # Extension of parallel line
+                    fig.add_shape(type="line", x0=last_date, y0=y_para0 + (daily_slope * (last_date - x1).days), 
+                                  x1=x_end, y1=y_para_end,
+                                  line=dict(color="red", width=2, dash="dash"), row=1, col=1)
+            except Exception:
+                pass
         p0, p1, p2, p3, p4 = [points.get(i) for i in range(5)]; last_idx_date = data.index[-1]
-
 
     # --- TARGET BOX & PATH LINE LOGIC (WITH FLEXIBLE PROJECTIONS) ---
     print("  Generating Projections with Confluence Checks (Flexible v5.6)...")
