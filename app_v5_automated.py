@@ -460,7 +460,9 @@ def detect_trendline_breaks(data, points, is_upward, lookback=20):
         # For upward impulse, connect Wave 0 and Wave 2 lows to form support trendline
         point0_idx = points[0].get('idx', 0)
         point2_idx = points[2].get('idx', 0)
-        
+        # Ensure both indices are integers before proceeding
+        if not isinstance(point0_idx, int) or not isinstance(point2_idx, int):
+            return {}
         if point0_idx < len(data) and point2_idx < len(data):
             point0_low = points[0]['Low']
             point2_low = points[2]['Low']
@@ -492,7 +494,9 @@ def detect_trendline_breaks(data, points, is_upward, lookback=20):
         # For downward impulse, connect Wave 0 and Wave 2 highs to form resistance trendline
         point0_idx = points[0].get('idx', 0)
         point2_idx = points[2].get('idx', 0)
-        
+        # Ensure both indices are integers before proceeding
+        if not isinstance(point0_idx, int) or not isinstance(point2_idx, int):
+            return {}
         if point0_idx < len(data) and point2_idx < len(data):
             point0_high = points[0]['High']
             point2_high = points[2]['High']
@@ -595,10 +599,18 @@ def find_potential_wave_points(data, order=5, prom_pct=0.01, prom_atr=1.5):
     filtered_list = []; last_type = None
     for idx, row in wave_pts.iterrows():
         current_type = row['Type']
-        if not filtered_list or current_type != last_type: filtered_list.append(row); last_type = current_type
-        elif current_type == 'peak' and row['High'] > filtered_list[-1]['High']: filtered_list[-1] = row
-        elif current_type == 'trough' and row['Low'] < filtered_list[-1]['Low']: filtered_list[-1] = row
-    if not filtered_list: print("  No alternating points after filtering."); return pd.DataFrame()
+        row_with_idx = row.copy()
+        row_with_idx['idx'] = wave_pts.index.get_loc(idx) if hasattr(wave_pts.index, 'get_loc') else idx
+        if not filtered_list or current_type != last_type:
+            filtered_list.append(row_with_idx)
+            last_type = current_type
+        elif current_type == 'peak' and row['High'] > filtered_list[-1]['High']:
+            filtered_list[-1] = row_with_idx
+        elif current_type == 'trough' and row['Low'] < filtered_list[-1]['Low']:
+            filtered_list[-1] = row_with_idx
+    if not filtered_list:
+        print("  No alternating points after filtering.")
+        return pd.DataFrame()
     wave_points_final = pd.DataFrame(filtered_list).drop(columns=['Type'])
     if not wave_points_final.index.is_unique:
         duplicate_count = wave_points_final.index.duplicated().sum(); print(f"  Warning: Duplicate timestamps found ({duplicate_count}) after filtering. Keeping first.")
@@ -631,6 +643,9 @@ def find_elliott_waves(wave_points, data_full):
     wave_points['EW_Label'] = "" # Reset labels
     best_sequence_score = -1; best_sequence_details = None
     identified_sequence_last_label = None; identified_sequence_last_point = None
+    # --- Track alternative wave counts ---
+    alternative_sequences = []  # List of dicts: [{score, length, ...}, ...]
+    max_alternatives = 2  # Show top 2 alternatives (excluding best)
 
     def score_sequence(points, is_up, length, full_data): # Internal scoring function
         score = 0; eps = 1e-9
@@ -746,9 +761,9 @@ def find_elliott_waves(wave_points, data_full):
                     continue
                 start_idx = get_idx(p[i-1])
                 end_idx = get_idx(p[i])
-                if start_idx is None or end_idx is None:
-                    # Missing index info, skip this wave for volume calc
-                    print(f"  Skipping volume calc for Wave {i}: missing 'idx' in wave point.")
+                if start_idx is None or end_idx is None or not isinstance(start_idx, int) or not isinstance(end_idx, int):
+                    # Missing or invalid index info, skip this wave for volume calc
+                    print(f"  Skipping volume calc for Wave {i}: missing or invalid 'idx' in wave point.")
                     continue
                 if start_idx >= end_idx or start_idx < 0 or end_idx >= len(data_full):
                     valid_volume_calc = False
@@ -855,7 +870,7 @@ def find_elliott_waves(wave_points, data_full):
                 if not correct_direction: 
                     p.pop(k)
                     break
-                    
+                
                 # Create a subset of points up to the current wave
                 points_subset = {idx: pt for idx, pt in p.items() if idx <= k}
                 
@@ -865,27 +880,52 @@ def find_elliott_waves(wave_points, data_full):
                 except KeyError as e:
                     print(f"  KeyError in score_sequence for wave {k+1}: {e}")
                     score_result_extended = -1  # Invalid sequence due to missing required points
-                    
+
                 if isinstance(score_result_extended, int) and score_result_extended == -1: 
                     p.pop(k)
                     break
                 else: 
                     current_best_len_for_i = k + 1
 
-        if current_best_len_for_i >= 3:
-            final_p = {idx: pt for idx, pt in p.items() if idx < current_best_len_for_i}
-            final_score_result = score_sequence(final_p, is_up, current_best_len_for_i, data_full)
-            if not (isinstance(final_score_result, int) and final_score_result == -1):
-                 score, rules, guidelines, fibs, vols = final_score_result
-                 sequence_details = {"score": score, "length": current_best_len_for_i, "last_label": str(current_best_len_for_i - 1),
-                                     "last_point": final_p[current_best_len_for_i - 1], "start_index_iloc": i, "is_upward": is_up,
-                                     "points": final_p, "fib_ratios": fibs, "guidelines": guidelines, "rules_passed": rules, "volume_details": vols}
-                 if score > best_sequence_score or (abs(score - best_sequence_score) < 5 and current_best_len_for_i > best_sequence_details["length"]):
-                     best_sequence_score = score; best_sequence_details = sequence_details
+            # Only process if we have a valid sequence
+            if current_best_len_for_i >= 3:
+                final_p = {idx: pt for idx, pt in p.items() if idx < current_best_len_for_i}
+                final_score_result = score_sequence(final_p, is_up, current_best_len_for_i, data_full)
+                if not (isinstance(final_score_result, int) and final_score_result == -1):
+                    score, rules, guidelines, fibs, vols = final_score_result
+                    sequence_details = {
+                        "score": score, 
+                        "length": current_best_len_for_i, 
+                        "last_label": str(current_best_len_for_i - 1),
+                        "last_point": final_p[current_best_len_for_i - 1],
+                        "start_index_iloc": i,
+                        "is_upward": is_up,
+                        "points": final_p,
+                        "fib_ratios": fibs,
+                        "guidelines": guidelines,
+                        "rules_passed": rules,
+                        "volume_details": vols
+                    }
+                    # Add to alternative list (keep top N by score)
+                    alternative_sequences.append(sequence_details)
+                    alternative_sequences = sorted(alternative_sequences, key=lambda d: d['score'], reverse=True)
+                    # Limit list size
+                    if len(alternative_sequences) > max_alternatives + 1:
+                        alternative_sequences = alternative_sequences[:max_alternatives + 1]
+                    if score > best_sequence_score or (abs(score - best_sequence_score) < 5 and (best_sequence_details is None or current_best_len_for_i > best_sequence_details["length"])):
+                        best_sequence_score = score
+                        best_sequence_details = sequence_details
 
-    if best_sequence_details: # Process best sequence
+    # Remove the best sequence from alternatives (if present)
+    if best_sequence_details:
         analysis_results.update({"found_impulse": True, "details": best_sequence_details, "last_label": best_sequence_details['last_label'], "last_point": best_sequence_details['last_point']})
+        # Store alternative sequences in analysis_results
+        analysis_results['alternative_sequences'] = alternative_sequences
         identified_sequence_last_label = best_sequence_details['last_label']; identified_sequence_last_point = best_sequence_details['last_point']
+        # Remove the best sequence from alternatives
+        alternative_sequences = [seq for seq in alternative_sequences if seq != best_sequence_details]
+        # Keep only the top N alternatives
+        analysis_results['alternative_sequences'] = alternative_sequences[:max_alternatives]
         for k in range(best_sequence_details['length']):
             point_timestamp = best_sequence_details['points'][k].name
             if point_timestamp in wave_points.index: wave_points.loc[point_timestamp, 'EW_Label'] = str(k)
@@ -931,13 +971,22 @@ def find_elliott_waves(wave_points, data_full):
 # --- Plotting Function ---
 # MODIFIED with more flexible projections
 def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interval=""):
-    """Plots chart with analysis, flexible projections, RSI & CONFLUENCE checks."""
+    """Plots chart with analysis, flexible projections, RSI & CONFLUENCE checks.
+    Now also plots alternative Elliott Wave counts with dashed/dotted lines and a legend.
+    """
     print("\n[Plotting] Generating v5.6 Chart (Flexible Projections)...") # Version update
     if data is None or data.empty: print("  Error: No data provided to plot."); return None
 
     # (Setup subplots - remains the same)
     rows = 1; row_heights = [0.75]; volume_row_index = 0; rsi_row_index = 0
     has_volume = 'Volume' in data.columns and not data['Volume'].isnull().all()
+
+    # --- New: Prepare alternative wave counts for plotting ---
+    alt_sequences = analysis_results.get('alternative_sequences', []) if analysis_results else []
+    alt_colors = ['#8888ff', '#ff88aa', '#88ffaa']  # Colors for alternatives
+    alt_styles = ['dot', 'dash']  # Plotly line dash styles
+
+    # The rest of the plotting setup remains the same
     has_rsi = PLOT_RSI and 'RSI' in data.columns and not data['RSI'].isnull().all()
     if has_rsi: rows += 1; rsi_row_index = rows; row_heights.append(0.15)
     if has_volume: rows += 1; volume_row_index = rows; row_heights.append(0.10)
@@ -956,6 +1005,40 @@ def plot_chart(data, identified_waves, analysis_results, ticker="Stock", interva
     for i, p in enumerate(MA_PERIODS):
         if f'SMA_{p}' in data.columns and not data[f'SMA_{p}'].isnull().all():
             fig.add_trace(go.Scatter(x=data.index, y=data[f'SMA_{p}'], mode='lines', name=f'SMA {p}', line=dict(color=ma_colors[i % len(ma_colors)], width=1.0, dash='dot')), row=1, col=1)
+
+    # --- Plot primary and alternative wave counts ---
+    def plot_wave_sequence(points, label_prefix, color, dash, show_legend, name_extra=None):
+        x_vals = [pt.name for pt in points.values()]
+        y_vals = [pt['High'] if points[1]['High'] > points[0]['High'] else pt['Low'] for pt in points.values()]
+        wave_nums = [str(i) for i in range(len(points))]
+        # Add the trace with wave numbers as text labels
+        return go.Scatter(
+            x=x_vals,
+            y=y_vals,
+            mode='lines+markers+text',
+            line=dict(color=color, dash=dash, width=2),
+            marker=dict(symbol='circle', size=8, color=color),
+            name=f"{label_prefix}{' - ' + name_extra if name_extra else ''}",
+            legendgroup=label_prefix,
+            showlegend=show_legend,
+            text=wave_nums,
+            textposition='top center',
+            textfont=dict(size=13, color=color, family="Arial Black, sans-serif")
+        )
+
+    # Plot the primary count (solid)
+    if analysis_results and 'details' in analysis_results and analysis_results['details']:
+        primary_points = analysis_results['details']['points']
+        fig.add_trace(plot_wave_sequence(primary_points, 'Primary EW Count', '#0055cc', 'solid', True), row=1, col=1)
+    # Plot alternatives (dashed/dotted)
+    for i, alt_seq in enumerate(alt_sequences):
+        alt_points = alt_seq['points']
+        color = alt_colors[i % len(alt_colors)]
+        dash = alt_styles[i % len(alt_styles)]
+        fig.add_trace(plot_wave_sequence(alt_points, f"Alternative {i+1}", color, dash, True), row=1, col=1)
+
+    # Add legend/annotation for clarity
+    fig.update_layout(legend=dict(title='Elliott Wave Counts', orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1))
 
     # (Plot Wave Points & Path - remains the same)
     plot_waves = identified_waves is not None and not identified_waves.empty
