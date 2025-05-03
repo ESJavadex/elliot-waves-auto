@@ -606,7 +606,10 @@
         {% endif %}
 
         {% if multi_stock_results %}
-            <h2>Multi-Stock Analysis Results</h2>
+            <h2>Multi-Stock Analysis Results - {{ strategy_type }}</h2>
+            <div class="strategy-indicator">
+                <span class="badge badge-primary">Using Super Strategy (Elliott Wave + Fibonacci)</span>
+            </div>
             <div class="filter-controls">
                 <div class="table-controls">
                     <button type="button" id="toggle-table-btn" class="toggle-table-btn">
@@ -676,23 +679,21 @@
                                 {% if result.wave_info and result.wave_info.correction %}<span class="correction-badge" title="Possible correction forming, target: {{ result.wave_info.correction_target }}">ABC</span>{% endif %}
                                 {% if result.wave_info and result.wave_info.impulse_identified %}<span class="impulse-badge" title="Complete impulse identified">✓</span>{% endif %}
                             </td>
-                            <td>{{ result.trade_recommendation_data.signal if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
-                            <td>{{ '%.2f'|format(result.trade_recommendation_data.entry_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
+                            <td>{{ result.trade_recommendation_data.recommendation if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}</td>
+                            <td>{{ '%.2f'|format(result.trade_recommendation_data.signals.entry) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.signals and result.trade_recommendation_data.signals.entry is not none else 'N/A' }}</td>
                             <td class="{% if result.backtest_stats and result.backtest_stats.hit_sl %}sl-reached{% endif %}">
-                                {{ '%.2f'|format(result.trade_recommendation_data.stop_loss_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}
+                                {{ '%.2f'|format(result.trade_recommendation_data.signals.stop_loss) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.signals and result.trade_recommendation_data.signals.stop_loss is not none else 'N/A' }}
                             </td>
                             <td class="{% if result.backtest_stats and result.backtest_stats.hit_tp1 %}tp1-reached{% endif %}">
-                                {{ '%.2f'|format(result.trade_recommendation_data.tp1_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}
+                                {{ '%.2f'|format(result.trade_recommendation_data.signals.targets[0]) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.signals and result.trade_recommendation_data.signals.targets and result.trade_recommendation_data.signals.targets|length > 0 else 'N/A' }}
                             </td>
                             <td class="{% if result.backtest_stats and result.backtest_stats.hit_tp2 %}tp2-reached{% endif %}">
-                                {{ '%.2f'|format(result.trade_recommendation_data.tp2_price) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}
+                                {{ '%.2f'|format(result.trade_recommendation_data.signals.targets[1]) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.signals and result.trade_recommendation_data.signals.targets and result.trade_recommendation_data.signals.targets|length > 1 else 'N/A' }}
                             </td>
-                            <td>{{ '%.2f'|format(result.trade_recommendation_data.tp1_rrr) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.tp1_rrr is not none else 'N/A' }}</td>
-                            <td class="{% if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' %}{% if result.trade_recommendation_data.pct_change > 0 %}positive-change{% else %}negative-change{% endif %}{% elif result.backtest_stats %}{% if result.backtest_stats.current_pct_change > 0 %}positive-change{% else %}negative-change{% endif %}{% endif %}">
-                                {% if result.backtest_stats %}
-                                    {{ '%.2f'|format(result.backtest_stats.current_pct_change) }}%
-                                {% elif result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' %}
-                                    {{ '%.2f'|format(result.trade_recommendation_data.pct_change) }}%
+                            <td>{{ '%.2f'|format(result.trade_recommendation_data.signals.risk_reward) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.signals and result.trade_recommendation_data.signals.risk_reward is not none else 'N/A' }}</td>
+                            <td class="{% if result.backtest_stats and result.backtest_stats.current_pct_change is not none %}{% if result.backtest_stats.current_pct_change > 0 %}positive-change{% else %}negative-change{% endif %}{% endif %}">
+                                {% if result.backtest_stats and result.backtest_stats.current_pct_change is not none %}
+                                    {{ '%.2f%%'|format(result.backtest_stats.current_pct_change) }}
                                 {% else %}
                                     N/A
                                 {% endif %}
