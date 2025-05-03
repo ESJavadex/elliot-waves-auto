@@ -513,8 +513,8 @@
 
                     <div class="input-group" id="single-ticker-group">
                         <label for="ticker">Ticker:</label>
-                        <input type="text" id="ticker" name="ticker" value="{{ form_values.ticker | default('^SPX', true) }}">
-                        <small>Enter a single stock ticker (e.g., AAPL, ^SPX).</small>
+                        <input type="text" id="ticker" name="ticker" value="{{ form_values.ticker | default('TDS', true) }}">
+                        <small>Enter a single stock ticker (e.g., AAPL, TDS).</small>
                     </div>
 
                     <div id="multi-stock-inputs">

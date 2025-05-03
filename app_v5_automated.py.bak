@@ -3406,7 +3406,7 @@ def index():
                     content = f.read().strip()
                 stock_lists[name] = content
                 print(f"Loaded stock list: {name} with {len(content.split(','))} stocks")
-        else:
+                else:
             print(f"Stock presets directory not found: {presets_dir}")
     except Exception as e:
         print(f"Error loading stock lists: {str(e)}")
@@ -3470,7 +3470,7 @@ def index():
                 if not stock_list:
                     error = "No valid tickers found in stock list."; raise ValueError(error)
                 print(f"Processing {len(stock_list)} stocks: {', '.join(stock_list)}")
-            else:
+                else:
                 # Single stock analysis
                 ticker = form_values['ticker'].strip().upper()
 
