@@ -834,9 +834,29 @@ def find_elliott_waves(wave_points, data_full):
 
 # --- Plotting Function ---
 # MODIFIED with more flexible projections
-def plot_chart(data, identified_waves, analysis_summary, ticker='Unknown', interval='1wk'):
+def plot_chart(data, identified_waves, analysis_summary, ticker='Unknown', interval=None):
     """Generate a plotly chart with Elliott Wave analysis."""
     print("\n[Plotting] Generating v5.6 Chart with Super Strategy (Flexible Projections)...") # Version update
+    
+    # If interval is not provided, try to infer it from the data
+    if interval is None:
+        if data is not None and isinstance(data.index, pd.DatetimeIndex) and len(data.index) >= 2:
+            time_diff = (data.index[-1] - data.index[0]).total_seconds() / (len(data.index) - 1)
+            # Rough estimation based on average time between data points
+            if time_diff < 60 * 60:  # Less than 1 hour
+                interval = '1m'
+            elif time_diff < 60 * 60 * 24:  # Less than 1 day
+                interval = '1h'
+            elif time_diff < 60 * 60 * 24 * 7:  # Less than 1 week
+                interval = '1d'
+            elif time_diff < 60 * 60 * 24 * 30:  # Less than 1 month
+                interval = '1wk'
+            else:
+                interval = '1mo'
+            print(f"  Inferred interval: {interval} based on data time difference")
+        else:
+            interval = '1wk'  # Default if we can't infer
+            print(f"  Using default interval: {interval}")
     if data is None or data.empty: print("  Error: No data provided to plot."); return None
 
     # (Setup subplots - remains the same)
@@ -1003,7 +1023,22 @@ def plot_chart(data, identified_waves, analysis_summary, ticker='Unknown', inter
         try: # Calculate time offsets
             valid_indices = data.index[data.index.notnull()]
             if len(valid_indices) > 1: avg_time_delta = pd.to_timedelta(np.median(np.diff(valid_indices)))
-            else: avg_time_delta = pd.Timedelta(weeks=1) if 'wk' in interval else pd.Timedelta(days=1)
+            else: 
+                # Use more robust interval detection
+                if interval and 'wk' in interval:
+                    avg_time_delta = pd.Timedelta(weeks=1)
+                elif interval and ('d' in interval or 'day' in interval):
+                    avg_time_delta = pd.Timedelta(days=1)
+                elif interval and ('h' in interval or 'hour' in interval):
+                    avg_time_delta = pd.Timedelta(hours=1)
+                elif interval and ('m' in interval and not 'mo' in interval):
+                    avg_time_delta = pd.Timedelta(minutes=5)
+                elif interval and 'mo' in interval:
+                    avg_time_delta = pd.Timedelta(days=30)
+                else:
+                    # If we can't determine, use daily as a default
+                    avg_time_delta = pd.Timedelta(days=1)
+                    
             if avg_time_delta <= pd.Timedelta(0): avg_time_delta = pd.Timedelta(days=1)
             min_offset = pd.Timedelta(days=max(7, avg_time_delta.days * 3))
             offset_primary = max(avg_time_delta * TARGETBOX_CANDLES_PRIMARY, min_offset)
@@ -1011,9 +1046,19 @@ def plot_chart(data, identified_waves, analysis_summary, ticker='Unknown', inter
             offset_tertiary = max(avg_time_delta * TARGETBOX_CANDLES_TERTIARY, min_offset * 3) # Use new constant
         except Exception as e: # Fallback offsets
             print(f"  Warning: Could not calculate average time delta: {e}. Using fixed offsets.")
-            offset_primary = pd.Timedelta(weeks=TARGETBOX_CANDLES_PRIMARY) if 'wk' in interval else pd.Timedelta(days=TARGETBOX_CANDLES_PRIMARY)
-            offset_secondary = pd.Timedelta(weeks=TARGETBOX_CANDLES_SECONDARY) if 'wk' in interval else pd.Timedelta(days=TARGETBOX_CANDLES_SECONDARY)
-            offset_tertiary = pd.Timedelta(weeks=TARGETBOX_CANDLES_TERTIARY) if 'wk' in interval else pd.Timedelta(days=TARGETBOX_CANDLES_TERTIARY)
+            # Use more robust interval detection for fallbacks
+            if interval and 'wk' in interval:
+                offset_primary = pd.Timedelta(weeks=TARGETBOX_CANDLES_PRIMARY)
+                offset_secondary = pd.Timedelta(weeks=TARGETBOX_CANDLES_SECONDARY)
+                offset_tertiary = pd.Timedelta(weeks=TARGETBOX_CANDLES_TERTIARY)
+            elif interval and ('mo' in interval):
+                offset_primary = pd.Timedelta(weeks=TARGETBOX_CANDLES_PRIMARY * 4)
+                offset_secondary = pd.Timedelta(weeks=TARGETBOX_CANDLES_SECONDARY * 4)
+                offset_tertiary = pd.Timedelta(weeks=TARGETBOX_CANDLES_TERTIARY * 4)
+            else:  # Default to days
+                offset_primary = pd.Timedelta(days=TARGETBOX_CANDLES_PRIMARY)
+                offset_secondary = pd.Timedelta(days=TARGETBOX_CANDLES_SECONDARY)
+                offset_tertiary = pd.Timedelta(days=TARGETBOX_CANDLES_TERTIARY)
 
         box_start_date = projection_basis_point.name + avg_time_delta / 4 if avg_time_delta and pd.notna(projection_basis_point.name) else data.index[-1] + pd.Timedelta(days=1)
         details = analysis_summary.get("details", {})
@@ -1752,8 +1797,19 @@ def plot_chart(data, identified_waves, analysis_summary, ticker='Unknown', inter
                      p_prev_hl = p_prev['Low'] if is_move_up else p_prev['High']; p_proj_base_hl = p_proj_base['High'] if is_move_up else p_proj_base['Low']
                      ext = calculate_fibonacci_extensions(p_prev_hl, p_proj_base_hl, p_proj_base['Close'])
                      t1, t2 = ext.get(1.0), ext.get(1.618)
-                     if 'avg_time_delta' not in locals(): avg_time_delta = pd.Timedelta(days=1) if 'd' in interval else pd.Timedelta(weeks=1)
-                     if 'offset_primary' not in locals(): offset_primary = pd.Timedelta(weeks=TARGETBOX_CANDLES_FALLBACK) if 'wk' in interval else pd.Timedelta(days=TARGETBOX_CANDLES_FALLBACK)
+                     if 'avg_time_delta' not in locals(): 
+                         if interval and 'd' in interval:
+                             avg_time_delta = pd.Timedelta(days=1) 
+                         else:
+                             avg_time_delta = pd.Timedelta(weeks=1)
+                     
+                     if 'offset_primary' not in locals(): 
+                         if interval and 'wk' in interval:
+                             offset_primary = pd.Timedelta(weeks=TARGETBOX_CANDLES_FALLBACK)
+                         elif interval and 'mo' in interval:
+                             offset_primary = pd.Timedelta(weeks=TARGETBOX_CANDLES_FALLBACK * 4)
+                         else:
+                             offset_primary = pd.Timedelta(days=TARGETBOX_CANDLES_FALLBACK)
                      if 'box_start_date' not in locals(): box_start_date = p_proj_base.name + avg_time_delta / 4 if pd.notna(p_proj_base.name) else data.index[-1] + pd.Timedelta(days=1)
                      if not projection_path_points: projection_path_points.append((p_proj_base.name, p_proj_base['Close'], f"Start ({p_proj_base['EW_Label']})"))
                      fallback_center = draw_target_box("Target", t1, t2, "255, 215, 0", offset_primary, "100-161.8% Prev Leg Ext", p_proj_base, current_price, primary=True, full_data=data, major_fibs_data=major_fib_levels_data)
@@ -1809,7 +1865,8 @@ def plot_chart(data, identified_waves, analysis_summary, ticker='Unknown', inter
         fig.update_yaxes(title_text="RSI", range=[0, 100], row=rsi_row_index, col=1, side='left')
 
     # --- Layout and Final Touches (remains the same) ---
-    chart_title_main = f'Conceptual EW Analysis: {ticker} ({interval}) Super Strategy Analysis'
+    interval_display = interval if interval else "1wk"
+    chart_title_main = f'Conceptual EW Analysis: {ticker} ({interval_display}) Super Strategy Analysis'
     if analysis_summary and "primary_scenario" in analysis_summary:
         chart_title_main += f" Primary: {analysis_summary['primary_scenario'].upper()}"
     if analysis_summary and "confidence" in analysis_summary:
@@ -1850,11 +1907,20 @@ def run_analysis(ticker, stock_data, peak_order=8, is_backtest=False, interval='
     Returns:
         Tuple of (figure, analysis_summary, trade_recommendation)
     """
+    # Fix for backward compatibility when interval is passed as 4th parameter
+    # This handles the case where some code might call run_analysis(ticker, start_date, end_date, interval)
+    if isinstance(is_backtest, str) and is_backtest in ['1d', '1wk', '1mo', '1h', '5m', '15m', '30m', '5d', '3mo']:
+        # In this case, is_backtest is actually the interval
+        print(f"  Note: Fixing parameter order - interval was passed as 4th parameter")
+        interval = is_backtest
+        is_backtest = False
+    
     # Start timing the execution
     start_time = datetime.datetime.now()
     
     print("\n=============== Starting Standard Analysis ===============")
-    print(f" Ticker: {ticker} ({interval})")
+    print(f" Ticker: {ticker}")
+    print(f" Interval: {interval}")
     
     # Store global trade recommendation for backtesting
     global global_trade_recommendation
@@ -2090,7 +2156,7 @@ def run_backtest_simulation(ticker, start_date, analysis_date, check_date, inter
     global_trade_recommendation = None
     
     start_time = datetime.datetime.now(); print(f"\n{'='*15} Starting Backtest Simulation {'='*15}")
-    print(f" Ticker: {ticker} ({interval})"); print(f" Analysis Period: {start_date} to {analysis_date}"); print(f" Check Period: {analysis_date} to {check_date}"); print(f"{'='*52}")
+    print(f" Ticker: {ticker}"); print(f" Interval: {interval}"); print(f" Analysis Period: {start_date} to {analysis_date}"); print(f" Check Period: {analysis_date} to {check_date}"); print(f"{'='*52}")
     
     # Get the stock data for the analysis period
     analysis_data = get_stock_data(ticker, start_date, analysis_date, interval)
