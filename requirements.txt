@@ -4,3 +4,4 @@ numpy>=1.24.0
 plotly>=5.14.0
 scipy>=1.10.0
 Flask>=2.3.0
+curl_cffi>=0.5.10

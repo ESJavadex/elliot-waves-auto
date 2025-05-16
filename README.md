@@ -17,7 +17,7 @@ This tool is designed to help **technical traders, analysts, and developers** vi
 - Trade recommendations with position sizing and risk control
 - Historical backtests for validation
 
-It’s useful for strategy development, market pattern research, and educational purposes.
+It's useful for strategy development, market pattern research, and educational purposes.
 
 ---
 
@@ -63,6 +63,24 @@ It’s useful for strategy development, market pattern research, and educational
    - **Trade signal overlays** (entry/SL/TP)
    - **Backtest mode** to compare historical forecasts with real outcomes
    - **Multi-stock analysis** for batch processing
+
+---
+
+## 🛡️ Yahoo Finance Rate Limit Solution
+
+The application now uses `curl_cffi` to avoid Yahoo Finance rate limiting issues. This solution:
+
+1. Creates a session that impersonates Chrome browser
+2. Bypasses the "Too Many Requests" errors that occur with frequent API calls
+3. Is implemented in the `get_stock_data` function
+
+You can also use the standalone utility to test this approach:
+
+```bash
+python fix_yfinance_ratelimit.py AAPL --start 2023-01-01 --end 2023-12-31 --interval 1wk
+```
+
+This utility demonstrates how to use the solution with any yfinance application.
 
 ---
 

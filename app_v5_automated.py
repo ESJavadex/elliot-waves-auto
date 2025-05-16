@@ -5,6 +5,7 @@ import warnings
 import math # For checking nan
 import json # For pretty printing the summary
 import traceback # For detailed error logging
+import time  # Added import for sleep
 
 import yfinance as yf
 import pandas as pd
@@ -318,14 +319,49 @@ def get_stock_data(ticker, start_date, end_date, interval):
     """Fetches, prepares stock data using yfinance, and calculates ATR, MAs, and RSI."""
     print(f"\n[Data Fetch] Attempting: {ticker} ({interval}) from {start_date} to {end_date}...")
     try:
-        stock = yf.Ticker(ticker)
+        # Use curl_cffi with Chrome impersonation to avoid rate limiting
+        from curl_cffi import requests as cffi_requests
+        session = cffi_requests.Session(impersonate="chrome")
+        stock = yf.Ticker(ticker, session=session)
+        
         max_indicator_period = max(MA_PERIODS) + ATR_PERIOD + RSI_PERIOD + 50
         start_dt_obj = pd.to_datetime(start_date); end_dt_obj = pd.to_datetime(end_date)
         start_dt_buffered = start_dt_obj - pd.Timedelta(days=max_indicator_period)
         end_dt_fetch = end_dt_obj + pd.Timedelta(days=1)
-        full_data_range = stock.history(start=start_dt_buffered.strftime('%Y-%m-%d'), end=end_dt_fetch.strftime('%Y-%m-%d'),
-                                     interval=interval, auto_adjust=False, prepost=False)
-        if full_data_range.empty: print(f"  Error: Could not fetch full data range (incl. buffer) for {ticker}."); return None
+        
+        # Add retry logic for rate limiting
+        max_retries = 5
+        retry_delay = 2
+        success = False
+        
+        for attempt in range(max_retries):
+            try:
+                full_data_range = stock.history(start=start_dt_buffered.strftime('%Y-%m-%d'), 
+                                               end=end_dt_fetch.strftime('%Y-%m-%d'),
+                                               interval=interval, auto_adjust=False, prepost=False)
+                success = True
+                break  # Exit the retry loop on success
+            except yf.exceptions.YFRateLimitError as e:
+                print(f"  Rate limit error (attempt {attempt+1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:  # Don't sleep on the last attempt
+                    time.sleep(retry_delay * (2 ** attempt))  # Exponential backoff
+                else:
+                    print(f"  Failed after {max_retries} attempts due to rate limiting")
+                    raise  # Re-raise on last attempt
+            except Exception as e:
+                print(f"  Error fetching data (attempt {attempt+1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                else:
+                    raise
+                    
+        if not success:
+            print(f"  Error: Could not fetch data after {max_retries} attempts")
+            return None
+            
+        if full_data_range.empty: 
+            print(f"  Error: Could not fetch full data range (incl. buffer) for {ticker}.")
+            return None
         if not isinstance(full_data_range.index, pd.DatetimeIndex): full_data_range.index = pd.to_datetime(full_data_range.index)
         if full_data_range.index.tz is None: full_data_range.index = full_data_range.index.tz_localize('UTC')
         else: full_data_range.index = full_data_range.index.tz_convert('UTC')
