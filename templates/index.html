@@ -103,6 +103,19 @@
              max-width: 400px; /* Limit width */
              justify-self: center; /* Center within the span */
         }
+        
+        .strategy-select-group {
+            grid-column: 1 / -1; /* Span full width */
+            max-width: 500px; /* Slightly wider for strategy names */
+            justify-self: center; /* Center within the span */
+        }
+        
+        .strategy-description {
+            color: var(--text-muted);
+            font-style: italic;
+            margin-top: 4px;
+            display: block;
+        }
         #single-ticker-group {
              grid-column: span 2; /* Example: Ticker takes 2 columns */
         }
@@ -509,6 +522,18 @@
                             <option value="single" {% if form_values.analysis_mode != 'multi' %}selected{% endif %}>Single Stock</option>
                             <option value="multi" {% if form_values.analysis_mode == 'multi' %}selected{% endif %}>Multiple Stocks</option>
                         </select>
+                    </div>
+
+                    <div class="input-group strategy-select-group">
+                        <label for="strategy_type">Elliott Wave Strategy</label>
+                        <select id="strategy_type" name="strategy_type">
+                            <option value="conservative" {% if form_values.strategy_type == 'conservative' %}selected{% endif %}>Conservative Elliott Wave</option>
+                            <option value="aggressive" {% if form_values.strategy_type == 'aggressive' %}selected{% endif %}>Aggressive Elliott Wave</option>
+                            <option value="fibonacci_confluence" {% if form_values.strategy_type == 'fibonacci_confluence' %}selected{% endif %}>Fibonacci Confluence</option>
+                            <option value="wave_validation" {% if form_values.strategy_type == 'wave_validation' %}selected{% endif %}>Wave Count Validation</option>
+                            <option value="hybrid_momentum" {% if form_values.strategy_type == 'hybrid_momentum' %}selected{% endif %}>Hybrid Momentum</option>
+                        </select>
+                        <small class="strategy-description" id="strategy-description">High confidence trades with strict Elliott Wave rules</small>
                     </div>
 
                     <div class="input-group" id="single-ticker-group">
@@ -933,6 +958,29 @@
     <script src="{{ url_for('static', filename='js/draggable-boxes.js') }}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // --- Strategy Descriptions ---
+            const strategySelect = document.getElementById('strategy_type');
+            const strategyDescription = document.getElementById('strategy-description');
+            
+            const strategyDescriptions = {
+                'conservative': 'High confidence trades with strict Elliott Wave rules (Risk: Low, Win Rate: High, Frequency: Low)',
+                'aggressive': 'More frequent trades with relaxed thresholds (Risk: High, Win Rate: Medium, Frequency: High)',
+                'fibonacci_confluence': 'Focus on Fibonacci level convergence and clusters (Risk: Medium, Win Rate: High, Frequency: Medium)',
+                'wave_validation': 'Multiple timeframe wave count confirmation (Risk: Low, Win Rate: Very High, Frequency: Very Low)',
+                'hybrid_momentum': 'Elliott Wave + RSI/Volume momentum confirmation (Risk: Medium, Win Rate: Medium-High, Frequency: Medium)'
+            };
+            
+            function updateStrategyDescription() {
+                const selectedStrategy = strategySelect.value;
+                strategyDescription.textContent = strategyDescriptions[selectedStrategy] || strategyDescriptions['conservative'];
+            }
+            
+            // Update description on change
+            strategySelect.addEventListener('change', updateStrategyDescription);
+            
+            // Set initial description
+            updateStrategyDescription();
+            
             // --- Elements ---
             const hideNoEntryCheckbox = document.getElementById('hide-no-entry');
             const stockTableBody = document.querySelector('.stock-results-table tbody');

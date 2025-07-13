@@ -1972,8 +1972,47 @@ def run_analysis(ticker, stock_data, peak_order=8, is_backtest=False, interval='
         # Try to use the super strategy first (most advanced)
         try:
             from super_strategy import run_super_strategy
-            print("\n[Super Strategy] Running advanced Elliott Wave + Fibonacci analysis...")
+            from strategy_variants import execute_strategy
+            
+            # Get strategy type from function attribute (set by Flask route)
+            strategy_type = getattr(run_analysis, '_strategy_type', 'conservative')
+            print(f"\n[Super Strategy] Running advanced Elliott Wave + Fibonacci analysis with '{strategy_type}' strategy...")
+            
             super_analysis = run_super_strategy(ticker, stock_data)
+            
+            # Apply the selected strategy variant
+            if super_analysis and strategy_type != 'conservative':  # Conservative is default
+                current_price = stock_data['Close'].iloc[-1]
+                sr_levels = {}  # Enhanced S/R levels could be added here
+                
+                # Prepare analysis data for strategy
+                base_analysis = {
+                    "valid": True,
+                    "confidence_score": super_analysis.get('confidence_score', 200),
+                    "pattern_type": super_analysis.get('pattern_type', 'impulse'),
+                    "is_up": super_analysis.get('is_up', True),
+                    "current_wave": {"wave": super_analysis.get('current_wave', '2')},
+                    "details": super_analysis
+                }
+                
+                # Execute the selected strategy
+                strategy_signal = execute_strategy(strategy_type, stock_data, base_analysis, sr_levels, current_price)
+                
+                # If strategy provides a signal, override the default
+                if strategy_signal and strategy_signal.get('signal') != 'no_trade':
+                    super_analysis['trade_signals'] = strategy_signal
+                    print(f"    - Strategy '{strategy_type}' generated signal: {strategy_signal.get('signal', 'no_trade')}")
+                else:
+                    # Strategy returned no trade - update super_analysis to reflect this
+                    super_analysis['trade_signals'] = strategy_signal if strategy_signal else {
+                        'signal': 'no_trade',
+                        'entry': None,
+                        'stop_loss': None,
+                        'targets': [],
+                        'risk_reward': None,
+                        'direction': None
+                    }
+                    print(f"    - Strategy '{strategy_type}' generated no trade signal")
             
             # Always use the super strategy result, even if it's a no_trade signal
             # This ensures we get consistent results for testing
@@ -2409,7 +2448,31 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
                     'risk_amount', 'notes'.
     """
     print("\n[Trade Recommender] Generating Trade Setup...")
-    recommendation = {'status': 'No Trade'} # Default
+    
+    # Helper function to create standardized no-trade recommendation
+    def create_no_trade_recommendation(reason="No valid trade setup identified"):
+        return {
+            'status': 'No Trade',
+            'signal': 'No Trade',
+            'reason': reason,
+            'entry_price': None,
+            'stop_loss_price': None,
+            'sl_distance_pct': 0,
+            'sl_distance_pips': 0,
+            'tp1_price': None,
+            'tp1_rrr': None,
+            'tp2_price': None,
+            'tp2_rrr': None,
+            'confidence_score': 0,
+            'position_size_units': 0,
+            'risk_amount': 0,
+            'currency': 'USD',
+            'risk_percent': risk_percent,
+            'account_size': demo_account_size,
+            'notes': reason
+        }
+    
+    recommendation = create_no_trade_recommendation() # Default
     
     # Check if we have a super strategy recommendation from the global variable
     global global_trade_recommendation
@@ -2485,15 +2548,15 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
             global_trade_recommendation = None
 
     if not analysis_summary or not analysis_summary.get('found_impulse'):
-        recommendation['reason'] = "No valid impulse wave sequence identified."
-        print(f"  Result: {recommendation['reason']}")
-        return recommendation
+        reason = "No valid impulse wave sequence identified."
+        print(f"  Result: {reason}")
+        return create_no_trade_recommendation(reason)
 
     details = analysis_summary.get('details')
     if not details:
-        recommendation['reason'] = "Analysis details are missing."
-        print(f"  Result: {recommendation['reason']}")
-        return recommendation
+        reason = "Analysis details are missing."
+        print(f"  Result: {reason}")
+        return create_no_trade_recommendation(reason)
 
     last_label = analysis_summary.get('last_label')
     last_point_overall = analysis_summary.get('last_point_overall') # Use the very last point on chart for entry context
@@ -2505,9 +2568,9 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
     currency = stock_data['Currency'].iloc[0] if 'Currency' in stock_data.columns and not stock_data['Currency'].isnull().all() else 'USD'
 
     if last_point_overall is None or last_ew_point is None:
-        recommendation['reason'] = "Last point data is missing."
-        print(f"  Result: {recommendation['reason']}")
-        return recommendation
+        reason = "Last point data is missing."
+        print(f"  Result: {reason}")
+        return create_no_trade_recommendation(reason)
 
     entry_price = last_point_overall['Close'] # Enter based on the close of the last identified point overall
     current_atr = stock_data['ATR'].iloc[-1] if 'ATR' in stock_data.columns and not stock_data['ATR'].isnull().all() else None
@@ -2581,15 +2644,14 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
 
     # --- Final Checks and Calculations ---
     if not trade_setup_found:
-        recommendation['reason'] = f"No actionable trade setup identified at Wave '{last_label}'."
-        print(f"  Result: {recommendation['reason']}")
-        return recommendation
+        reason = f"No actionable trade setup identified at Wave '{last_label}'."
+        print(f"  Result: {reason}")
+        return create_no_trade_recommendation(reason)
 
     if stop_loss_price is None or pd.isna(stop_loss_price):
-        recommendation['reason'] = f"Could not determine Stop Loss for label '{last_label}'."
-        print(f"  Result: {recommendation['reason']}")
-        recommendation['status'] = 'Error'
-        return recommendation
+        reason = f"Could not determine Stop Loss for label '{last_label}'."
+        print(f"  Result: {reason}")
+        return create_no_trade_recommendation(reason)
 
     # Add ATR buffer to stop loss for volatility
     if current_atr is not None and not pd.isna(current_atr) and atr_stop_multiplier > 0:
@@ -2605,15 +2667,13 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
 
     # Ensure SL makes sense relative to entry
     if signal == "Long" and stop_loss_price >= entry_price:
-        recommendation['reason'] = "Stop Loss is above or equal to Entry Price for Long trade."
-        print(f"  Result: {recommendation['reason']} (SL: {stop_loss_price:.4f}, Entry: {entry_price:.4f})")
-        recommendation['status'] = 'Error'
-        return recommendation
+        reason = "Stop Loss is above or equal to Entry Price for Long trade."
+        print(f"  Result: {reason} (SL: {stop_loss_price:.4f}, Entry: {entry_price:.4f})")
+        return create_no_trade_recommendation(reason)
     if signal == "Short" and stop_loss_price <= entry_price:
-        recommendation['reason'] = "Stop Loss is below or equal to Entry Price for Short trade."
-        print(f"  Result: {recommendation['reason']} (SL: {stop_loss_price:.4f}, Entry: {entry_price:.4f})")
-        recommendation['status'] = 'Error'
-        return recommendation
+        reason = "Stop Loss is below or equal to Entry Price for Short trade."
+        print(f"  Result: {reason} (SL: {stop_loss_price:.4f}, Entry: {entry_price:.4f})")
+        return create_no_trade_recommendation(reason)
 
     sl_distance_pips = abs(entry_price - stop_loss_price)
     if entry_price == 0: # Avoid division by zero
@@ -2680,10 +2740,9 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
         print("  Warning: TP2 was adjusted to prevent negative value.")
         
     if tp1_price is None:
-        recommendation['reason'] = f"Could not determine valid Take Profit levels for label '{last_label}'."
-        print(f"  Result: {recommendation['reason']}")
-        recommendation['status'] = 'Error'
-        return recommendation
+        reason = f"Could not determine valid Take Profit levels for label '{last_label}'."
+        print(f"  Result: {reason}")
+        return create_no_trade_recommendation(reason)
 
 
     # --- Calculate Confidence Score (Example Logic - Needs Refinement) ---
@@ -2728,10 +2787,9 @@ def generate_trade_recommendation(analysis_summary, stock_data, risk_percent=1.0
     if sl_distance_pips > 1e-9: # Avoid division by zero
         position_size_units = risk_amount / sl_distance_pips
     else:
-        recommendation['status'] = 'Error'
-        recommendation['reason'] = "Stop Loss distance is zero, cannot calculate position size."
-        print(f"  Result: {recommendation['reason']}")
-        return recommendation
+        reason = "Stop Loss distance is zero, cannot calculate position size."
+        print(f"  Result: {reason}")
+        return create_no_trade_recommendation(reason)
 
     # --- Populate Recommendation ---
     recommendation.update({
@@ -2870,6 +2928,8 @@ def index():
         'demo_account_size': request.form.get('demo_account_size', '10000'),
         # Get show trade levels checkbox value
         'show_trade_on_plot': request.form.get('show_trade_on_plot', ''),
+        # Strategy selection
+        'strategy_type': request.form.get('strategy_type', 'conservative'),
         # Multi-stock analysis parameters
         'stock_list': request.form.get('stock_list', ''),
         'analysis_mode': request.form.get('analysis_mode', 'single'),
@@ -2879,6 +2939,13 @@ def index():
     }
     if request.method == 'POST':
         request_start_time = datetime.datetime.now(); print(f"\n--- Received POST request at {request_start_time} ---")
+        
+        # Set strategy type for analysis functions
+        strategy_type = form_values['strategy_type']
+        run_analysis._strategy_type = strategy_type
+        run_backtest_simulation._strategy_type = strategy_type
+        print(f"Strategy type selected: {strategy_type}")
+        
         is_backtest = form_values.get('run_backtest') == 'true'; print(f"Backtest mode requested: {is_backtest}")
         # Convert checkbox value to boolean
         show_trade_on_plot = form_values.get('show_trade_on_plot') == 'true'
@@ -3157,6 +3224,112 @@ def index():
                         # Make sure the trade recommendation has the status field
                         if 'status' not in current_trade_recommendation:
                             current_trade_recommendation['status'] = 'Trade Found'
+                        
+                        # Convert nested structure to flat structure for template compatibility
+                        if current_trade_recommendation and 'signals' in current_trade_recommendation:
+                            # This is the nested global_trade_recommendation structure - convert it
+                            signals = current_trade_recommendation['signals']
+                            flat_recommendation = {
+                                'status': current_trade_recommendation.get('status', 'Trade Found'),
+                                'signal': current_trade_recommendation.get('recommendation', 'LONG'),
+                                'reason': f"Multi-stock analysis - {current_trade_recommendation.get('recommendation', 'LONG')} signal",
+                                'entry_price': signals.get('entry'),
+                                'stop_loss_price': signals.get('stop_loss'),
+                                'sl_distance_pct': 0,  # Can be calculated if needed
+                                'sl_distance_pips': 0,  # Can be calculated if needed
+                                'tp1_price': signals.get('targets', [None])[0] if signals.get('targets') else None,
+                                'tp1_rrr': None,
+                                'tp2_price': signals.get('targets', [None, None])[1] if signals.get('targets') and len(signals.get('targets', [])) > 1 else None,
+                                'tp2_rrr': None,
+                                'confidence_score': 75,  # Default value
+                                'position_size_units': 0,
+                                'risk_amount': 100.0,  # Default value
+                                'currency': 'USD',
+                                'risk_percent': 1.0,
+                                'account_size': 10000,
+                                'notes': f"Strategy: {strategy_type}"
+                            }
+                            
+                            # Calculate risk-reward ratios if we have the data
+                            if (flat_recommendation['entry_price'] and 
+                                flat_recommendation['stop_loss_price'] and 
+                                flat_recommendation['tp1_price']):
+                                
+                                risk = abs(flat_recommendation['entry_price'] - flat_recommendation['stop_loss_price'])
+                                reward1 = abs(flat_recommendation['tp1_price'] - flat_recommendation['entry_price'])
+                                flat_recommendation['tp1_rrr'] = reward1 / risk if risk > 0 else 0
+                                flat_recommendation['sl_distance_pct'] = (risk / flat_recommendation['entry_price']) * 100 if flat_recommendation['entry_price'] > 0 else 0
+                                flat_recommendation['sl_distance_pips'] = risk
+                                
+                                if flat_recommendation['tp2_price']:
+                                    reward2 = abs(flat_recommendation['tp2_price'] - flat_recommendation['entry_price'])
+                                    flat_recommendation['tp2_rrr'] = reward2 / risk if risk > 0 else 0
+                            
+                            current_trade_recommendation = flat_recommendation
+                        elif current_trade_recommendation and current_trade_recommendation.get('status') == 'No Trade':
+                            # Handle "No Trade" cases with nested structure for template
+                            current_trade_recommendation = {
+                                'status': 'No Trade',
+                                'recommendation': 'No Trade',
+                                'signals': {
+                                    'entry': None,
+                                    'stop_loss': None,
+                                    'targets': [],
+                                    'risk_reward': None,
+                                    'direction': None
+                                },
+                                'wave_label': 'N/A',
+                                'notes': f"No trade signal from {strategy_type} strategy",
+                                'confidence_score': 0
+                            }
+                        elif current_trade_recommendation and 'entry_price' in current_trade_recommendation:
+                            # Already in flat format (from generate_trade_recommendation) - convert to nested format for template
+                            print(f"  DEBUG: Converting flat format to nested format for {current_ticker}")
+                            nested_recommendation = {
+                                'status': current_trade_recommendation.get('status', 'Trade Found'),
+                                'recommendation': current_trade_recommendation.get('signal', 'LONG'),
+                                'signals': {
+                                    'entry': current_trade_recommendation.get('entry_price'),
+                                    'stop_loss': current_trade_recommendation.get('stop_loss_price'),
+                                    'targets': [current_trade_recommendation.get('tp1_price'), current_trade_recommendation.get('tp2_price')] if current_trade_recommendation.get('tp1_price') else [],
+                                    'risk_reward': current_trade_recommendation.get('tp1_rrr', 0),
+                                    'direction': current_trade_recommendation.get('signal', 'LONG').lower()
+                                },
+                                'wave_label': 'W5',
+                                'notes': current_trade_recommendation.get('notes', ''),
+                                'confidence_score': current_trade_recommendation.get('confidence_score', 75)
+                            }
+                            current_trade_recommendation = nested_recommendation
+                        else:
+                            # Unknown format or None - create default no-trade with nested structure
+                            print(f"  DEBUG: Unknown trade recommendation format for {current_ticker}, creating default")
+                            current_trade_recommendation = {
+                                'status': 'No Trade',
+                                'recommendation': 'No Trade',
+                                'signals': {
+                                    'entry': None,
+                                    'stop_loss': None,
+                                    'targets': [],
+                                    'risk_reward': None,
+                                    'direction': None
+                                },
+                                'wave_label': 'N/A',
+                                'notes': 'Default no-trade recommendation',
+                                'confidence_score': 0
+                            }
+                        
+                        # DEBUG: Print what we're adding to results
+                        print(f"  DEBUG: Adding {current_ticker} to results with trade_recommendation_data:")
+                        if current_trade_recommendation:
+                            print(f"    Status: {current_trade_recommendation.get('status')}")
+                            if 'signals' in current_trade_recommendation:
+                                signals = current_trade_recommendation['signals']
+                                print(f"    Entry: {signals.get('entry')}")
+                                print(f"    Stop Loss: {signals.get('stop_loss')}")
+                                print(f"    Targets: {signals.get('targets')}")
+                            print(f"    Keys: {list(current_trade_recommendation.keys())}")
+                        else:
+                            print(f"    trade_recommendation_data is None!")
                         
                         # Add to results
                         multi_stock_results.append({
@@ -3793,7 +3966,7 @@ def index():
         request_end_time = datetime.datetime.now(); print(f"--- Finished POST request processing in {request_end_time - request_start_time} ---")
     # Pass all data to template
     # Add strategy type indicator to the template context
-    strategy_type = "Super Strategy (Elliott Wave + Fibonacci)"
+    strategy_type = form_values.get('strategy_type', 'conservative')
     
     # Add strategy type to each result in multi_stock_results if it doesn't already have it
     if multi_stock_results:
