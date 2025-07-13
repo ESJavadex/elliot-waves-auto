@@ -329,6 +329,25 @@ def calculate_target_zones(current_price, wave_points, pattern_type, is_up=True)
         "invalidation": None
     }
     
+    # Safety check for wave_points
+    if wave_points is None or len(wave_points) == 0 or not hasattr(wave_points, 'itertuples'):
+        # Return default targets based on current price and ATR-like estimation
+        price_range = current_price * 0.05  # 5% range estimation
+        
+        if is_up:
+            targets["conservative"] = current_price + price_range * 1.0
+            targets["moderate"] = current_price + price_range * 1.5
+            targets["aggressive"] = current_price + price_range * 2.0
+            targets["stop_loss"] = current_price - price_range * 0.5
+        else:
+            targets["conservative"] = current_price - price_range * 1.0
+            targets["moderate"] = current_price - price_range * 1.5
+            targets["aggressive"] = current_price - price_range * 2.0
+            targets["stop_loss"] = current_price + price_range * 0.5
+            
+        targets["invalidation"] = targets["stop_loss"]
+        return targets
+    
     # Extract price levels based on trend direction
     price_levels = {}
     for i, point in enumerate(wave_points.itertuples()):

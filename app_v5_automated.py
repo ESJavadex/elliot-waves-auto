@@ -19,8 +19,47 @@ from flask import Flask, render_template, request, jsonify
 import glob
 import os
 
-# Global variable to store trade recommendations for backtesting
+# Global variables for storing analysis results
 global_trade_recommendation = None
+global_strategy_comparison = None
+
+def convert_strategy_to_trade_recommendation(strategy_signal, current_price):
+    """Convert strategy signal format to trade recommendation format for compatibility."""
+    if not strategy_signal or strategy_signal.get('signal') == 'no_trade':
+        return None
+    
+    # Extract values from strategy signal format
+    entry = strategy_signal.get('entry') or current_price
+    stop_loss = strategy_signal.get('stop_loss')
+    targets = strategy_signal.get('targets', [])
+    
+    # Calculate additional fields
+    sl_distance = abs(entry - stop_loss) if stop_loss else 0
+    sl_distance_pct = (sl_distance / entry) * 100 if entry and sl_distance else 0
+    
+    # Create trade recommendation format
+    recommendation = {
+        'status': 'Trade Found',
+        'signal': strategy_signal.get('signal', 'buy').upper(),
+        'reason': f"Strategy comparison mode: {strategy_signal.get('signal', 'buy')} signal",
+        'entry_price': entry,
+        'stop_loss_price': stop_loss,
+        'sl_distance_pct': sl_distance_pct,
+        'sl_distance_pips': sl_distance,
+        'tp1_price': targets[0] if len(targets) > 0 else None,
+        'tp2_price': targets[1] if len(targets) > 1 else None,
+        'tp1_rrr': strategy_signal.get('risk_reward', 0),
+        'tp2_rrr': strategy_signal.get('risk_reward', 0) * 1.5 if strategy_signal.get('risk_reward') else 0,
+        'confidence_score': 75,  # Default for strategy comparison
+        'position_size_units': 100,  # Default position size
+        'risk_amount': sl_distance * 100 if sl_distance else 0,  # Basic calculation
+        'currency': 'USD',
+        'risk_percent': 1.0,
+        'account_size': 10000,
+        'notes': f"Generated from {strategy_signal.get('confidence', 'medium')} confidence strategy signal"
+    }
+    
+    return recommendation
 
 app = Flask(__name__)
 
@@ -1969,62 +2008,131 @@ def run_analysis(ticker, stock_data, peak_order=8, is_backtest=False, interval='
     # Generate trade recommendations if available
     trade_recommendation = None
     try:
-        # Try to use the super strategy first (most advanced)
-        try:
-            from super_strategy import run_super_strategy
-            from strategy_variants import execute_strategy
-            
-            # Get strategy type from function attribute (set by Flask route)
-            strategy_type = getattr(run_analysis, '_strategy_type', 'conservative')
-            print(f"\n[Super Strategy] Running advanced Elliott Wave + Fibonacci analysis with '{strategy_type}' strategy...")
-            
-            super_analysis = run_super_strategy(ticker, stock_data)
-            
-            # Apply the selected strategy variant
-            if super_analysis and strategy_type != 'conservative':  # Conservative is default
-                current_price = stock_data['Close'].iloc[-1]
-                sr_levels = {}  # Enhanced S/R levels could be added here
+        # Get strategy type from function attribute (set by Flask route)
+        strategy_type = getattr(run_analysis, '_strategy_type', 'moderate')
+        
+        # Handle strategy comparison mode FIRST (independent of super_strategy)
+        if strategy_type == 'compare_all':
+            print(f"\n[Strategy Comparison] Running all strategies for comparison...")
+            try:
+                from strategy_variants import execute_all_strategies
                 
-                # Prepare analysis data for strategy
+                current_price = stock_data['Close'].iloc[-1]
+                sr_levels = {}
+                
+                # Create basic analysis data for strategies
+                # Use the existing Elliott Wave analysis results
                 base_analysis = {
                     "valid": True,
-                    "confidence_score": super_analysis.get('confidence_score', 200),
-                    "pattern_type": super_analysis.get('pattern_type', 'impulse'),
-                    "is_up": super_analysis.get('is_up', True),
-                    "current_wave": {"wave": super_analysis.get('current_wave', '2')},
-                    "details": super_analysis
+                    "confidence_score": analysis_summary.get('details', {}).get('score', 200),
+                    "pattern_type": "impulse" if analysis_summary.get('found_impulse') else "corrective", 
+                    "is_up": analysis_summary.get('details', {}).get('is_upward', True),
+                    "current_wave": {"wave": analysis_summary.get('last_label', '2')},
+                    "details": analysis_summary.get('details', {})
                 }
                 
-                # Execute the selected strategy
-                strategy_signal = execute_strategy(strategy_type, stock_data, base_analysis, sr_levels, current_price)
+                print(f"    - Base analysis: {base_analysis['pattern_type']} pattern, Wave {base_analysis['current_wave']['wave']}")
+                print(f"    - Confidence score: {base_analysis['confidence_score']}")
                 
-                # If strategy provides a signal, override the default
+                # Execute all strategies
+                all_strategies_results = execute_all_strategies(stock_data, base_analysis, sr_levels, current_price)
+                
+                # Store comparison results in global variable for template access
+                global global_strategy_comparison
+                global_strategy_comparison = all_strategies_results
+                
+                print(f"    - ✅ Executed {len(all_strategies_results['strategy_results'])} strategies for comparison")
+                
+                # Use moderate strategy as default for main analysis flow
+                from strategy_variants import execute_strategy
+                strategy_signal = execute_strategy('moderate', stock_data, base_analysis, sr_levels, current_price)
+                
+                # Convert strategy signal format to trade recommendation format for compatibility
                 if strategy_signal and strategy_signal.get('signal') != 'no_trade':
-                    super_analysis['trade_signals'] = strategy_signal
-                    print(f"    - Strategy '{strategy_type}' generated signal: {strategy_signal.get('signal', 'no_trade')}")
-                else:
-                    # Strategy returned no trade - update super_analysis to reflect this
-                    super_analysis['trade_signals'] = strategy_signal if strategy_signal else {
-                        'signal': 'no_trade',
-                        'entry': None,
-                        'stop_loss': None,
-                        'targets': [],
-                        'risk_reward': None,
-                        'direction': None
+                    converted_recommendation = convert_strategy_to_trade_recommendation(strategy_signal, current_price)
+                    # Set the global trade recommendation for the main flow
+                    global_trade_recommendation = {
+                        'recommendation': strategy_signal.get('direction', 'LONG').upper(),
+                        'signals': {
+                            'entry': converted_recommendation.get('entry_price'),
+                            'stop_loss': converted_recommendation.get('stop_loss_price'),
+                            'targets': [converted_recommendation.get('tp1_price'), converted_recommendation.get('tp2_price')]
+                        }
                     }
-                    print(f"    - Strategy '{strategy_type}' generated no trade signal")
-            
-            # Always use the super strategy result, even if it's a no_trade signal
-            # This ensures we get consistent results for testing
-            
-            # Helper function to safely extract values from potentially DataFrame objects
-            def safe_extract(obj, default=None):
-                if isinstance(obj, (pd.DataFrame, pd.Series)):
-                    if hasattr(obj, 'empty') and not obj.empty and hasattr(obj, 'iloc'):
-                        return obj.iloc[0]
-                    return default
-                return obj
+                    print(f"    - ✅ Generated trade recommendation from moderate strategy")
                 
+                # Skip the rest of the super strategy logic for comparison mode
+                print(f"    - ✅ Strategy comparison complete!")
+                
+            except ImportError as e:
+                print(f"    - ❌ Strategy comparison failed: {e}")
+            
+            # Continue with regular plotting (skip super strategy)
+            
+        else:
+            # Try to use the super strategy for individual strategies
+            try:
+                from super_strategy import run_super_strategy
+                from strategy_variants import execute_strategy, execute_all_strategies
+                
+                print(f"\n[Super Strategy] Running advanced Elliott Wave + Fibonacci analysis with '{strategy_type}' strategy...")
+                
+                super_analysis = run_super_strategy(ticker, stock_data)
+                
+                # Apply the selected strategy variant  
+                if super_analysis and strategy_type != 'moderate':  # Moderate is default
+                    current_price = stock_data['Close'].iloc[-1]
+                    sr_levels = {}  # Enhanced S/R levels could be added here
+                    
+                    # Prepare analysis data for strategy
+                    base_analysis = {
+                        "valid": True,
+                        "confidence_score": super_analysis.get('confidence_score', 200),
+                        "pattern_type": super_analysis.get('pattern_type', 'impulse'),
+                        "is_up": super_analysis.get('is_up', True),
+                        "current_wave": {"wave": super_analysis.get('current_wave', '2')},
+                        "details": super_analysis
+                    }
+                    
+                    # Execute the selected strategy
+                    strategy_signal = execute_strategy(strategy_type, stock_data, base_analysis, sr_levels, current_price)
+                
+                    # If strategy provides a signal, override the default
+                    if strategy_signal and strategy_signal.get('signal') != 'no_trade':
+                        super_analysis['trade_signals'] = strategy_signal
+                        print(f"    - Strategy '{strategy_type}' generated signal: {strategy_signal.get('signal', 'no_trade')}")
+                    else:
+                        # Strategy returned no trade - update super_analysis to reflect this
+                        super_analysis['trade_signals'] = strategy_signal if strategy_signal else {
+                            'signal': 'no_trade',
+                            'entry': None,
+                            'stop_loss': None,
+                            'targets': [],
+                            'risk_reward': None,
+                            'direction': None
+                        }
+                        print(f"    - Strategy '{strategy_type}' generated no trade signal")
+            
+                # Always use the super strategy result, even if it's a no_trade signal
+                # This ensures we get consistent results for testing
+            
+            except ImportError:
+                # Super strategy not available, continue with standard analysis
+                print(f"\n[Standard Analysis] Super strategy not available, using standard analysis...")
+            
+        # Helper function to safely extract values from potentially DataFrame objects
+        def safe_extract(obj, default=None):
+            if isinstance(obj, (pd.DataFrame, pd.Series)):
+                if hasattr(obj, 'empty') and not obj.empty and hasattr(obj, 'iloc'):
+                    return obj.iloc[0]
+                return default
+            return obj
+                
+        # Skip complex super_analysis logic for comparison mode - it's already handled above
+        if strategy_type == 'compare_all':
+            # Strategy comparison was already completed above, skip this complex logic
+            pass
+        else:
             # Get the signal and convert to uppercase for consistency
             signal_value = safe_extract(super_analysis['trade_signals'].get('signal'), 'no_trade')
             signal = str(signal_value).upper()
@@ -2040,7 +2148,7 @@ def run_analysis(ticker, stock_data, peak_order=8, is_backtest=False, interval='
                 else:
                     signal = 'SELL'
                     direction = 'short'
-                    
+                        
                 # Get the current price for fallback entry
                 try:
                     # Use safe extraction to get the last close price
@@ -2049,7 +2157,7 @@ def run_analysis(ticker, stock_data, peak_order=8, is_backtest=False, interval='
                 except Exception as e:
                     print(f"Error getting current price: {e}")
                     current_price = 100.0
-                    
+                        
                 # Create fallback targets and stop loss
                 entry = current_price
                 stop_loss = current_price * 0.95 if signal == 'BUY' else current_price * 1.05
@@ -2059,7 +2167,7 @@ def run_analysis(ticker, stock_data, peak_order=8, is_backtest=False, interval='
                     current_price * 1.15 if signal == 'BUY' else current_price * 0.85
                 ]
                 risk_reward = 2.0
-                
+                    
                 # Build the trade_recommendation directly from fallback SCALAR values
                 trade_recommendation = {
                     'signal': signal.lower(),
@@ -2071,7 +2179,7 @@ def run_analysis(ticker, stock_data, peak_order=8, is_backtest=False, interval='
                     'reasoning': ['Forced trade signal for testing']
                 }
                 # Also wrap it in the structure expected later
-                trade_recommendation = {
+                global_trade_recommendation = {
                     'recommendation': signal, # BUY or SELL
                     'signals': trade_recommendation, # Embed the signals dict
                     'analysis': super_analysis, # Keep original analysis details
@@ -2155,20 +2263,7 @@ def run_analysis(ticker, stock_data, peak_order=8, is_backtest=False, interval='
             # Skip the fallback to ensure we're using the super strategy
 
             # Set the global trade recommendation for backtesting
-            global global_trade_recommendation
             global_trade_recommendation = trade_recommendation
-        except ImportError:
-            # Fall back to the improved trade signals
-            from trade_signals import analyze_trade_opportunity
-            print("\n[Trade Analysis] Generating trade recommendations based on Elliott Wave analysis...")
-            trade_recommendation = analyze_trade_opportunity(identified_waves, analysis_summary, stock_data)
-            print(f"  Trade recommendation: {trade_recommendation['recommendation']}")
-            if trade_recommendation['signals']['entry'] is not None:
-                print(f"  Entry: ${trade_recommendation['signals']['entry']:.2f}")
-                print(f"  Stop loss: ${trade_recommendation['signals']['stop_loss']:.2f}")
-                if trade_recommendation['signals']['targets']:
-                    print(f"  Targets: {', '.join([f'${t:.2f}' for t in trade_recommendation['signals']['targets']])}")
-                print(f"  Risk/Reward: {trade_recommendation['signals']['risk_reward']:.2f}")
     except Exception as e:
         print(f"  Error generating trade recommendations: {e}")
     
@@ -2887,6 +2982,10 @@ app.secret_key = os.urandom(24)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    # Clear global variables at start of request
+    global global_strategy_comparison
+    global_strategy_comparison = None
+    
     plot_html = None; error = None; analysis_summary_data = None; analysis_summary_pretty = None
     trade_recommendation_data = None # Variable for trade recommendation
     multi_stock_results = None # Variable for multiple stock analysis results
@@ -2929,7 +3028,7 @@ def index():
         # Get show trade levels checkbox value
         'show_trade_on_plot': request.form.get('show_trade_on_plot', ''),
         # Strategy selection
-        'strategy_type': request.form.get('strategy_type', 'conservative'),
+        'strategy_type': request.form.get('strategy_type', 'moderate'),
         # Multi-stock analysis parameters
         'stock_list': request.form.get('stock_list', ''),
         'analysis_mode': request.form.get('analysis_mode', 'single'),
@@ -3477,11 +3576,16 @@ def index():
             if fig and show_trade_on_plot and trade_recommendation_data and trade_recommendation_data.get('status') == 'Trade Found':
                 print("  Adding trade levels to the plot...")
                 try:
-                    entry = trade_recommendation_data['entry_price']
-                    sl = trade_recommendation_data['stop_loss_price']
-                    tp1 = trade_recommendation_data.get('tp1_price')
-                    tp2 = trade_recommendation_data.get('tp2_price')
+                    # Handle different data formats - check for both possible key names
+                    entry = trade_recommendation_data.get('entry_price') or trade_recommendation_data.get('entry')
+                    sl = trade_recommendation_data.get('stop_loss_price') or trade_recommendation_data.get('stop_loss')
+                    tp1 = trade_recommendation_data.get('tp1_price') or trade_recommendation_data.get('tp1')
+                    tp2 = trade_recommendation_data.get('tp2_price') or trade_recommendation_data.get('tp2')
                     signal = trade_recommendation_data.get('signal', '')
+                    
+                    if not entry:
+                        print(f"  Warning: No entry price found in trade data. Keys available: {list(trade_recommendation_data.keys())}")
+                        raise KeyError("No entry price found")
                     
                     # Get data range for proper positioning
                     if fig.data and hasattr(fig.data[0], 'x') and fig.data[0].x is not None and len(fig.data[0].x) > 0:
@@ -3966,7 +4070,7 @@ def index():
         request_end_time = datetime.datetime.now(); print(f"--- Finished POST request processing in {request_end_time - request_start_time} ---")
     # Pass all data to template
     # Add strategy type indicator to the template context
-    strategy_type = form_values.get('strategy_type', 'conservative')
+    strategy_type = form_values.get('strategy_type', 'moderate')
     
     # Add strategy type to each result in multi_stock_results if it doesn't already have it
     if multi_stock_results:
@@ -3987,7 +4091,8 @@ def index():
                            default_analysis_date=default_analysis_date,
                            default_check_date=default_check_date,
                            stock_lists=stock_lists,  # Pass stock lists to template
-                           strategy_type=strategy_type)  # Pass strategy type to template
+                           strategy_type=strategy_type,  # Pass strategy type to template
+                           strategy_comparison=global_strategy_comparison)  # Pass strategy comparison results
 
 if __name__ == '__main__':
     print("\n--- Starting Flask Server ---")

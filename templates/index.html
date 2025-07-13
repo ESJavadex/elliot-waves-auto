@@ -506,6 +506,217 @@
             color: var(--danger-color);
             background-color: rgba(220, 53, 69, 0.1);
         }
+
+        /* Strategy Comparison Styles */
+        .strategy-comparison-section {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            margin: 2rem 0;
+            box-shadow: var(--shadow-md);
+        }
+
+        /* Overall Summary Styles */
+        .overall-summary-container {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border-left: 4px solid var(--accent-primary);
+        }
+
+        .overall-summary-container h3 {
+            color: var(--accent-primary);
+            margin: 0 0 1rem 0;
+            font-size: 1.2rem;
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .summary-stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            border-left: 3px solid var(--border-color);
+        }
+
+        .summary-stat.consensus-bullish {
+            border-left-color: var(--success);
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        .summary-stat.consensus-bearish {
+            border-left-color: var(--danger);
+            background: rgba(248, 113, 113, 0.1);
+        }
+
+        .summary-stat.consensus-neutral {
+            border-left-color: var(--warning);
+            background: rgba(250, 204, 21, 0.1);
+        }
+
+        .summary-stat.best-strategy {
+            border-left-color: var(--accent-primary);
+            background: rgba(77, 132, 255, 0.1);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .stat-value {
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .strategy-comparison-section h2 {
+            color: var(--accent-primary);
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .comparison-summary {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            font-size: 1rem;
+        }
+
+        .comparison-table-container {
+            margin-bottom: 2rem;
+        }
+
+        .comparison-table-container h3 {
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .strategy-comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .strategy-comparison-table th {
+            background: var(--accent-primary);
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .strategy-comparison-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .strategy-comparison-table tr:hover {
+            background: var(--bg-input);
+        }
+
+        /* Signal status colors */
+        .signal-buy {
+            color: var(--success) !important;
+            font-weight: bold;
+        }
+
+        .signal-sell {
+            color: var(--danger) !important;
+            font-weight: bold;
+        }
+
+        .signal-none {
+            color: var(--text-muted) !important;
+        }
+
+        /* Risk level colors */
+        .risk-very-low {
+            color: var(--success) !important;
+        }
+
+        .risk-low {
+            color: #90ee90 !important;
+        }
+
+        .risk-medium {
+            color: var(--warning) !important;
+        }
+
+        .risk-high {
+            color: var(--danger) !important;
+        }
+
+        /* Strategy Details */
+        .strategy-details-section {
+            margin-top: 2rem;
+        }
+
+        .strategy-details-section h3 {
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .strategy-detail-card {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--accent-primary);
+        }
+
+        .strategy-detail-card h4 {
+            color: var(--accent-primary);
+            margin: 0 0 0.5rem 0;
+            font-size: 1rem;
+        }
+
+        .strategy-reasoning {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .strategy-reasoning ul {
+            margin: 0.5rem 0 0 1rem;
+            padding: 0;
+        }
+
+        .strategy-reasoning li {
+            margin: 0.25rem 0;
+        }
+
+        /* Responsive design for strategy comparison */
+        @media (max-width: 768px) {
+            .strategy-comparison-table {
+                font-size: 0.8rem;
+            }
+            
+            .strategy-comparison-table th,
+            .strategy-comparison-table td {
+                padding: 0.5rem;
+            }
+            
+            .strategy-comparison-section {
+                padding: 1rem;
+                margin: 1rem 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -527,13 +738,15 @@
                     <div class="input-group strategy-select-group">
                         <label for="strategy_type">Elliott Wave Strategy</label>
                         <select id="strategy_type" name="strategy_type">
+                            <option value="compare_all" {% if form_values.strategy_type == 'compare_all' %}selected{% endif %}>🔄 Compare All Strategies</option>
                             <option value="conservative" {% if form_values.strategy_type == 'conservative' %}selected{% endif %}>Conservative Elliott Wave</option>
+                            <option value="moderate" {% if form_values.strategy_type == 'moderate' %}selected{% endif %}>Moderate Elliott Wave</option>
                             <option value="aggressive" {% if form_values.strategy_type == 'aggressive' %}selected{% endif %}>Aggressive Elliott Wave</option>
                             <option value="fibonacci_confluence" {% if form_values.strategy_type == 'fibonacci_confluence' %}selected{% endif %}>Fibonacci Confluence</option>
                             <option value="wave_validation" {% if form_values.strategy_type == 'wave_validation' %}selected{% endif %}>Wave Count Validation</option>
                             <option value="hybrid_momentum" {% if form_values.strategy_type == 'hybrid_momentum' %}selected{% endif %}>Hybrid Momentum</option>
                         </select>
-                        <small class="strategy-description" id="strategy-description">High confidence trades with strict Elliott Wave rules</small>
+                        <small class="strategy-description" id="strategy-description">Balanced approach, Wave 2,3&4 trades with RSI confirmation</small>
                     </div>
 
                     <div class="input-group" id="single-ticker-group">
@@ -682,10 +895,10 @@
                             data-ticker="{{ result.ticker }}"
                             data-wave="{{ result.wave_info.current_wave if result.wave_info else 'N/A' }}"
                             data-signal="{{ result.trade_recommendation_data.signal if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else 'N/A' }}"
-                            data-entry="{{ result.trade_recommendation_data.entry_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
-                            data-sl="{{ result.trade_recommendation_data.stop_loss_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
-                            data-tp1="{{ result.trade_recommendation_data.tp1_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
-                            data-tp2="{{ result.trade_recommendation_data.tp2_price if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
+                            data-entry="{{ (result.trade_recommendation_data.entry_price or result.trade_recommendation_data.entry) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
+                            data-sl="{{ (result.trade_recommendation_data.stop_loss_price or result.trade_recommendation_data.stop_loss) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
+                            data-tp1="{{ (result.trade_recommendation_data.tp1_price or result.trade_recommendation_data.tp1) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
+                            data-tp2="{{ (result.trade_recommendation_data.tp2_price or result.trade_recommendation_data.tp2) if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else '' }}"
                             data-rrr="{{ result.trade_recommendation_data.tp1_rrr if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' and result.trade_recommendation_data.tp1_rrr is not none else '' }}"
                             data-pct-change="{{ result.trade_recommendation_data.pct_change if result.trade_recommendation_data and result.trade_recommendation_data.status == 'Trade Found' else result.backtest_stats.current_pct_change if result.backtest_stats else '' }}"
                             {% if form_values.run_backtest == 'true' and result.backtest_stats %}
@@ -744,6 +957,142 @@
                     </tbody>
                 </table>
             </div>
+        {% endif %}
+
+        <!-- Strategy Comparison Results Section -->
+        {% if strategy_comparison %}
+        <div class="strategy-comparison-section">
+            <h2>🔄 Strategy Comparison Results</h2>
+            <p class="comparison-summary">Analysis run on <strong>{{ form_values.ticker }}</strong> comparing all strategies</p>
+            
+            <!-- Overall Summary -->
+            {% if strategy_comparison.overall_summary %}
+            <div class="overall-summary-container">
+                <h3>📈 Overall Consensus</h3>
+                <div class="summary-stats">
+                    <div class="summary-stat consensus-{{ strategy_comparison.overall_summary.consensus.lower() }}">
+                        <span class="stat-label">Market Consensus:</span>
+                        <span class="stat-value">{{ strategy_comparison.overall_summary.consensus }} ({{ strategy_comparison.overall_summary.consensus_strength }})</span>
+                    </div>
+                    <div class="summary-stat">
+                        <span class="stat-label">Strategies Signaling Buy:</span>
+                        <span class="stat-value">{{ strategy_comparison.overall_summary.buy_signals }}</span>
+                    </div>
+                    <div class="summary-stat">
+                        <span class="stat-label">Strategies Signaling Sell:</span>
+                        <span class="stat-value">{{ strategy_comparison.overall_summary.sell_signals }}</span>
+                    </div>
+                    <div class="summary-stat">
+                        <span class="stat-label">No Trade Signals:</span>
+                        <span class="stat-value">{{ strategy_comparison.overall_summary.no_trade_signals }}</span>
+                    </div>
+                    {% if strategy_comparison.overall_summary.average_risk_reward %}
+                    <div class="summary-stat">
+                        <span class="stat-label">Average Risk-Reward:</span>
+                        <span class="stat-value">{{ "%.2f"|format(strategy_comparison.overall_summary.average_risk_reward) }}:1</span>
+                    </div>
+                    {% endif %}
+                    {% if strategy_comparison.overall_summary.best_strategy %}
+                    <div class="summary-stat best-strategy">
+                        <span class="stat-label">Highest Confidence:</span>
+                        <span class="stat-value">{{ strategy_comparison.overall_summary.best_strategy.strategy.replace('_', ' ').title() }} ({{ strategy_comparison.overall_summary.best_strategy.confidence.replace('_', ' ').title() }})</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Signal Comparison Table -->
+            <div class="comparison-table-container">
+                <h3>📊 Signal Comparison</h3>
+                <table class="strategy-comparison-table">
+                    <thead>
+                        <tr>
+                            {% for header in strategy_comparison.signal_table.headers %}
+                            <th>{{ header }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in strategy_comparison.signal_table.rows %}
+                        <tr>
+                            {% for cell in row %}
+                            <td class="{% if cell == 'BUY' or cell == 'LONG' %}signal-buy{% elif cell == 'SELL' or cell == 'SHORT' %}signal-sell{% elif cell == 'NO_TRADE' %}signal-none{% endif %}">{{ cell }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Risk Comparison Table -->
+            <div class="comparison-table-container">
+                <h3>⚠️ Risk Analysis</h3>
+                <table class="strategy-comparison-table">
+                    <thead>
+                        <tr>
+                            {% for header in strategy_comparison.risk_table.headers %}
+                            <th>{{ header }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in strategy_comparison.risk_table.rows %}
+                        <tr>
+                            {% for cell in row %}
+                            <td class="{% if 'Very Low' in cell %}risk-very-low{% elif 'Low' in cell %}risk-low{% elif 'Medium' in cell %}risk-medium{% elif 'High' in cell %}risk-high{% endif %}">{{ cell }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Target Comparison Table -->
+            <div class="comparison-table-container">
+                <h3>🎯 Profit Targets</h3>
+                <table class="strategy-comparison-table">
+                    <thead>
+                        <tr>
+                            {% for header in strategy_comparison.target_table.headers %}
+                            <th>{{ header }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in strategy_comparison.target_table.rows %}
+                        <tr>
+                            {% for cell in row %}
+                            <td>{{ cell }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Strategy Details -->
+            <div class="strategy-details-section">
+                <h3>📋 Strategy Details & Reasoning</h3>
+                {% for strategy_name, result in strategy_comparison.strategy_results.items() %}
+                <div class="strategy-detail-card">
+                    <h4>{{ strategy_name.replace('_', ' ').title() }}</h4>
+                    <div class="strategy-reasoning">
+                        <strong>Signal:</strong> {{ result.signal.upper() }}<br>
+                        <strong>Confidence:</strong> {{ result.confidence.replace('_', ' ').title() }}<br>
+                        {% if result.reasoning %}
+                        <strong>Reasoning:</strong>
+                        <ul>
+                            {% for reason in result.reasoning %}
+                            <li>{{ reason }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
         {% endif %}
 
         {% if plot_html %}
@@ -872,13 +1221,13 @@
                         <div class="trade-item signal-{{ trade_recommendation_data.signal | lower }}"><label>Signal:</label><span class="value">{{ trade_recommendation_data.signal }}</span></div>
                         <div class="trade-item confidence-score"><label>Confidence Score:</label><span class="value">{{ trade_recommendation_data.confidence_score }} / 100</span></div>
                         <div class="trade-item"><label>Reason:</label><span class="value" style="font-size: 0.9em; color: var(--text-secondary); font-weight: normal; line-height: 1.4;">{{ trade_recommendation_data.reason }}</span></div>
-                        <div class="trade-item"><label>Entry Price:</label><span class="value">{{ "%.4f"|format(trade_recommendation_data.entry_price) }} {{ trade_recommendation_data.currency }}</span></div>
-                        <div class="trade-item signal-{{ 'long' if trade_recommendation_data.signal == 'Short' else 'short' }}"><label>Stop Loss Price:</label><span class="value">{{ "%.4f"|format(trade_recommendation_data.stop_loss_price) }}</span><small>({{ "%.2f"|format(trade_recommendation_data.sl_distance_pct) }}% / {{ "%.4f"|format(trade_recommendation_data.sl_distance_pips) }} points)</small></div>
-                        <div class="trade-item risk-reward"><label>Risk Amount:</label><span class="value">{{ "%.2f"|format(trade_recommendation_data.risk_amount) }} {{ trade_recommendation_data.currency }}</span><small>({{ trade_recommendation_data.risk_percent }}% of {{ "{:,.0f}".format(trade_recommendation_data.account_size) }})</small></div>
-                        <div class="trade-item signal-{{ trade_recommendation_data.signal | lower }}"><label>Take Profit 1:</label>{% if trade_recommendation_data.tp1_price %}<span class="value">{{ "%.4f"|format(trade_recommendation_data.tp1_price) }}</span>{% else %}<span class="value" style="color:var(--text-muted);">N/A</span>{% endif %}</div>
+                        <div class="trade-item"><label>Entry Price:</label><span class="value">{{ "%.4f"|format(trade_recommendation_data.entry_price or trade_recommendation_data.entry or 0) }} {{ trade_recommendation_data.currency or 'USD' }}</span></div>
+                        <div class="trade-item signal-{{ 'long' if trade_recommendation_data.signal == 'Short' else 'short' }}"><label>Stop Loss Price:</label><span class="value">{{ "%.4f"|format(trade_recommendation_data.stop_loss_price or trade_recommendation_data.stop_loss or 0) }}</span><small>({{ "%.2f"|format(trade_recommendation_data.sl_distance_pct or 0) }}% / {{ "%.4f"|format(trade_recommendation_data.sl_distance_pips or 0) }} points)</small></div>
+                        <div class="trade-item risk-reward"><label>Risk Amount:</label><span class="value">{{ "%.2f"|format(trade_recommendation_data.risk_amount or 0) }} {{ trade_recommendation_data.currency or 'USD' }}</span><small>({{ trade_recommendation_data.risk_percent or 0 }}% of {{ "{:,.0f}".format(trade_recommendation_data.account_size or 0) }})</small></div>
+                        <div class="trade-item signal-{{ trade_recommendation_data.signal | lower }}"><label>Take Profit 1:</label>{% if trade_recommendation_data.tp1_price or trade_recommendation_data.tp1 %}<span class="value">{{ "%.4f"|format(trade_recommendation_data.tp1_price or trade_recommendation_data.tp1) }}</span>{% else %}<span class="value" style="color:var(--text-muted);">N/A</span>{% endif %}</div>
                         <div class="trade-item risk-reward"><label>TP1 Risk/Reward:</label>{% if trade_recommendation_data.tp1_rrr %}<span class="value">{{ "%.2f"|format(trade_recommendation_data.tp1_rrr) }}:1</span>{% else %}<span class="value" style="color:var(--text-muted);">N/A</span>{% endif %}</div>
-                        <div class="trade-item"><label>Position Size:</label><span class="value">{{ "%.4f"|format(trade_recommendation_data.position_size_units) }} Units/Shares</span><small>(Check contract specs!)</small></div>
-                        <div class="trade-item signal-{{ trade_recommendation_data.signal | lower }}"><label>Take Profit 2:</label>{% if trade_recommendation_data.tp2_price %}<span class="value">{{ "%.4f"|format(trade_recommendation_data.tp2_price) }}</span>{% else %}<span class="value" style="color:var(--text-muted);">N/A</span>{% endif %}</div>
+                        <div class="trade-item"><label>Position Size:</label><span class="value">{{ "%.4f"|format(trade_recommendation_data.position_size_units or 0) }} Units/Shares</span><small>(Check contract specs!)</small></div>
+                        <div class="trade-item signal-{{ trade_recommendation_data.signal | lower }}"><label>Take Profit 2:</label>{% if trade_recommendation_data.tp2_price or trade_recommendation_data.tp2 %}<span class="value">{{ "%.4f"|format(trade_recommendation_data.tp2_price or trade_recommendation_data.tp2) }}</span>{% else %}<span class="value" style="color:var(--text-muted);">N/A</span>{% endif %}</div>
                         <div class="trade-item risk-reward"><label>TP2 Risk/Reward:</label>{% if trade_recommendation_data.tp2_rrr %}<span class="value">{{ "%.2f"|format(trade_recommendation_data.tp2_rrr) }}:1</span>{% else %}<span class="value" style="color:var(--text-muted);">N/A</span>{% endif %}</div>
                         <div class="trade-item"></div>
                     </div>
@@ -963,16 +1312,18 @@
             const strategyDescription = document.getElementById('strategy-description');
             
             const strategyDescriptions = {
-                'conservative': 'High confidence trades with strict Elliott Wave rules (Risk: Low, Win Rate: High, Frequency: Low)',
-                'aggressive': 'More frequent trades with relaxed thresholds (Risk: High, Win Rate: Medium, Frequency: High)',
-                'fibonacci_confluence': 'Focus on Fibonacci level convergence and clusters (Risk: Medium, Win Rate: High, Frequency: Medium)',
+                'compare_all': 'Run all strategies simultaneously and compare results with detailed analysis tables and individual plots',
+                'conservative': 'Very high confidence trades, Wave 2&4 only, multiple confirmations (Risk: Very Low, Win Rate: Very High, Frequency: Very Low)',
+                'moderate': 'Balanced approach, Wave 2,3&4 trades with RSI confirmation (Risk: Medium, Win Rate: High, Frequency: Medium)',
+                'aggressive': 'High frequency trades on ALL waves with momentum signals (Risk: High, Win Rate: Medium, Frequency: Very High)',
+                'fibonacci_confluence': 'Advanced Fibonacci harmonic patterns and time analysis (Risk: Medium, Win Rate: High, Frequency: Medium)',
                 'wave_validation': 'Multiple timeframe wave count confirmation (Risk: Low, Win Rate: Very High, Frequency: Very Low)',
                 'hybrid_momentum': 'Elliott Wave + RSI/Volume momentum confirmation (Risk: Medium, Win Rate: Medium-High, Frequency: Medium)'
             };
             
             function updateStrategyDescription() {
                 const selectedStrategy = strategySelect.value;
-                strategyDescription.textContent = strategyDescriptions[selectedStrategy] || strategyDescriptions['conservative'];
+                strategyDescription.textContent = strategyDescriptions[selectedStrategy] || strategyDescriptions['moderate'];
             }
             
             // Update description on change
