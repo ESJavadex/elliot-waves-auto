@@ -3914,9 +3914,33 @@ def analyze_single_stock(ticker, start_date, end_date, analysis_date, check_date
                         current_backtest_stats = current_analysis_summary['backtest_stats']
             else:
                 try:
-                    _, current_analysis_summary, current_trade_recommendation = run_analysis(
+                    _, current_analysis_summary, raw_trade_rec = run_analysis(
                         ticker, start_date, end_date, False, interval
                     )
+                    # Convert trade_signals.py format to expected format
+                    # trade_signals returns: {signals: {...}, recommendation: 'LONG - HIGH confidence'/'No trade'}
+                    # Expected format: {status: 'Trade Found', signal: 'Long', entry_price, stop_loss_price, ...}
+                    rec = raw_trade_rec.get('recommendation', '') if raw_trade_rec else ''
+                    if rec.startswith('LONG') or rec.startswith('SHORT'):
+                        signals = raw_trade_rec.get('signals', {})
+                        targets = signals.get('targets', [])
+                        signal_type = 'Long' if rec.startswith('LONG') else 'Short'
+                        current_trade_recommendation = {
+                            'status': 'Trade Found',
+                            'signal': signal_type,
+                            'entry_price': signals.get('entry'),
+                            'stop_loss_price': signals.get('stop_loss'),
+                            'tp1_price': targets[0] if len(targets) > 0 else None,
+                            'tp2_price': targets[1] if len(targets) > 1 else None,
+                            'tp1_rrr': signals.get('risk_reward', 0),
+                            'confidence': signals.get('confidence', 'low'),
+                            'notes': f"Pattern: {signals.get('pattern_type', 'unknown')}"
+                        }
+                    elif raw_trade_rec:
+                        current_trade_recommendation = {
+                            'status': 'No Trade',
+                            'reason': rec or 'No signal'
+                        }
                 except Exception as e:
                     current_analysis_summary = {'error': str(e)}
 
