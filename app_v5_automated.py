@@ -6,6 +6,10 @@ import math # For checking nan
 import json # For pretty printing the summary
 import traceback # For detailed error logging
 import time  # Added import for sleep
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
+import queue
+import hashlib
 
 import yfinance as yf
 import pandas as pd
@@ -21,6 +25,60 @@ import os
 
 # Global variable to store trade recommendations for backtesting
 global_trade_recommendation = None
+
+# ============================================================================
+# STOCK DATA CACHE - Avoids re-fetching the same data
+# ============================================================================
+class StockDataCache:
+    """Thread-safe cache for stock data with TTL (time-to-live)"""
+    def __init__(self, ttl_seconds=300):  # 5 minutes default TTL
+        self._cache = {}
+        self._lock = Lock()
+        self.ttl_seconds = ttl_seconds
+
+    def _make_key(self, ticker, start_date, end_date, interval):
+        """Create a unique cache key"""
+        key_string = f"{ticker}|{start_date}|{end_date}|{interval}"
+        return hashlib.md5(key_string.encode()).hexdigest()
+
+    def get(self, ticker, start_date, end_date, interval):
+        """Get cached data if available and not expired"""
+        key = self._make_key(ticker, start_date, end_date, interval)
+        with self._lock:
+            if key in self._cache:
+                data, timestamp = self._cache[key]
+                if time.time() - timestamp < self.ttl_seconds:
+                    print(f"  [Cache HIT] Using cached data for {ticker}")
+                    return data.copy()  # Return a copy to avoid mutations
+                else:
+                    # Expired, remove from cache
+                    del self._cache[key]
+        return None
+
+    def set(self, ticker, start_date, end_date, interval, data):
+        """Store data in cache with current timestamp"""
+        if data is None:
+            return
+        key = self._make_key(ticker, start_date, end_date, interval)
+        with self._lock:
+            self._cache[key] = (data.copy(), time.time())
+            print(f"  [Cache SET] Cached data for {ticker}")
+
+    def clear(self):
+        """Clear all cached data"""
+        with self._lock:
+            self._cache.clear()
+
+    def get_stats(self):
+        """Get cache statistics"""
+        with self._lock:
+            return {
+                'entries': len(self._cache),
+                'ttl_seconds': self.ttl_seconds
+            }
+
+# Global cache instance
+stock_cache = StockDataCache(ttl_seconds=300)  # 5 minute cache
 
 app = Flask(__name__)
 
@@ -315,9 +373,16 @@ def calculate_rsi(data, period=14):
 
 # --- Data Fetching ---
 # (Function remains the same as before)
-def get_stock_data(ticker, start_date, end_date, interval):
+def get_stock_data(ticker, start_date, end_date, interval, use_cache=True):
     """Fetches, prepares stock data using yfinance, and calculates ATR, MAs, and RSI."""
     print(f"\n[Data Fetch] Attempting: {ticker} ({interval}) from {start_date} to {end_date}...")
+
+    # Check cache first
+    if use_cache:
+        cached_data = stock_cache.get(ticker, start_date, end_date, interval)
+        if cached_data is not None:
+            return cached_data
+
     try:
         # Use curl_cffi with Chrome impersonation to avoid rate limiting
         from curl_cffi import requests as cffi_requests
@@ -385,6 +450,11 @@ def get_stock_data(ticker, start_date, end_date, interval):
         if len(data) < initial_len: print(f"  Note: Removed {initial_len - len(data)} rows with NaN values from the final date range.")
         if data.empty: print("  Error: Data empty after NaN removal/trimming."); return None
         print(f"  Success: Fetched and prepared {len(data)} data points for {start_date} to {end_date}.")
+
+        # Cache the result for future use
+        if use_cache:
+            stock_cache.set(ticker, start_date, end_date, interval, data)
+
         return data
     except Exception as e: print(f"  [Data Fetch] Unexpected Error: {e}"); traceback.print_exc(); return None
 
@@ -3816,9 +3886,64 @@ def index():
                            stock_lists=stock_lists,  # Pass stock lists to template
                            strategy_type=strategy_type)  # Pass strategy type to template
 
+def analyze_single_stock(ticker, start_date, end_date, analysis_date, check_date, interval, is_backtest):
+    """Helper function to analyze a single stock - used for parallel processing"""
+    try:
+        current_analysis_summary = None
+        current_backtest_stats = None
+        current_trade_recommendation = None
+
+        if is_backtest:
+            _, current_analysis_summary = run_backtest_simulation(
+                ticker, start_date, analysis_date, check_date, interval
+            )
+            if current_analysis_summary:
+                if 'trade_recommendation' in current_analysis_summary:
+                    current_trade_recommendation = current_analysis_summary['trade_recommendation']
+                if 'backtest_stats' in current_analysis_summary:
+                    current_backtest_stats = current_analysis_summary['backtest_stats']
+        else:
+            try:
+                _, current_analysis_summary, current_trade_recommendation = run_analysis(
+                    ticker, start_date, end_date, False, interval
+                )
+            except Exception as e:
+                current_analysis_summary = {'error': str(e)}
+
+        # Extract wave information
+        wave_info = {}
+        if current_analysis_summary and not current_analysis_summary.get('error'):
+            wave_info['current_wave'] = current_analysis_summary.get('last_label', 'Unknown')
+            wave_info['impulse_identified'] = current_analysis_summary.get('impulse_identified', False)
+            if 'details' in current_analysis_summary and 'sequence_score' in current_analysis_summary['details']:
+                wave_info['score'] = current_analysis_summary['details']['sequence_score']
+            else:
+                wave_info['score'] = 0
+
+        # Build result
+        result = {
+            'ticker': ticker,
+            'trade_recommendation_data': clean_data_for_json(current_trade_recommendation) if current_trade_recommendation else None,
+            'wave_info': wave_info,
+            'backtest_stats': clean_data_for_json(current_backtest_stats) if current_backtest_stats else None,
+            'error': current_analysis_summary.get('error') if current_analysis_summary else None
+        }
+
+        return result, current_backtest_stats, current_trade_recommendation
+
+    except Exception as e:
+        return {
+            'ticker': ticker,
+            'error': str(e),
+            'trade_recommendation_data': None,
+            'wave_info': {},
+            'backtest_stats': None
+        }, None, None
+
+
 @app.route('/api/analyze-stream', methods=['POST'])
 def analyze_stream():
-    """SSE endpoint for streaming multi-stock analysis results"""
+    """SSE endpoint for streaming multi-stock analysis results with parallel processing"""
     # Extract data BEFORE the generator to avoid request context issues
     data = request.get_json()
     stock_list_raw = data.get('stock_list', '')
@@ -3833,14 +3958,17 @@ def analyze_stream():
     stock_list = [ticker.strip().upper() for ticker in stock_list_raw.split(',') if ticker.strip()]
     total_stocks = len(stock_list)
 
+    # Number of parallel workers (adjust based on API rate limits)
+    max_workers = min(5, total_stocks)  # Limit to 5 parallel workers to avoid rate limiting
+
     def generate():
         try:
             if not stock_list:
                 yield f"data: {json.dumps({'type': 'error', 'message': 'No stocks provided'})}\n\n"
                 return
 
-            # Send initial message with total count
-            yield f"data: {json.dumps({'type': 'start', 'total': total_stocks})}\n\n"
+            # Send initial message with total count and parallel info
+            yield f"data: {json.dumps({'type': 'start', 'total': total_stocks, 'parallel_workers': max_workers})}\n\n"
 
             # Backtest summary statistics
             backtest_summary = {
@@ -3850,88 +3978,67 @@ def analyze_stream():
                 'total_win_pct': 0, 'total_loss_pct': 0
             }
 
-            for idx, current_ticker in enumerate(stock_list):
-                try:
-                    current_analysis_summary = None
-                    current_backtest_stats = None
-                    current_trade_recommendation = None
+            completed_count = 0
 
-                    if is_backtest:
-                        _, current_analysis_summary = run_backtest_simulation(
-                            current_ticker, start_date, analysis_date, check_date, interval
-                        )
-                        if current_analysis_summary:
-                            if 'trade_recommendation' in current_analysis_summary:
-                                current_trade_recommendation = current_analysis_summary['trade_recommendation']
-                            if 'backtest_stats' in current_analysis_summary:
-                                current_backtest_stats = current_analysis_summary['backtest_stats']
-                                # Update backtest summary
-                                if current_backtest_stats and current_trade_recommendation and current_trade_recommendation.get('status') == 'Trade Found':
-                                    backtest_summary['total_trades'] += 1
-                                    if current_backtest_stats.get('hit_tp1'): backtest_summary['hit_tp1'] += 1
-                                    if current_backtest_stats.get('hit_tp2'): backtest_summary['hit_tp2'] += 1
-                                    if current_backtest_stats.get('hit_sl'):
-                                        backtest_summary['hit_sl'] += 1
-                                        backtest_summary['losing_trades'] += 1
-                                    elif current_backtest_stats.get('hit_tp1') or current_backtest_stats.get('hit_tp2'):
-                                        backtest_summary['winning_trades'] += 1
-                                    if current_backtest_stats.get('status') == 'still_running':
-                                        backtest_summary['still_running'] += 1
-                                    pct_change = current_backtest_stats.get('current_pct_change', 0)
-                                    if pct_change > 0:
-                                        backtest_summary['total_win_pct'] += pct_change
-                                    else:
-                                        backtest_summary['total_loss_pct'] += pct_change
-                    else:
-                        try:
-                            _, current_analysis_summary, current_trade_recommendation = run_analysis(
-                                current_ticker, start_date, end_date, False, interval
-                            )
-                        except Exception as e:
-                            current_analysis_summary = {'error': str(e)}
+            # Use ThreadPoolExecutor for parallel processing
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all tasks
+                future_to_ticker = {
+                    executor.submit(
+                        analyze_single_stock,
+                        ticker, start_date, end_date, analysis_date, check_date, interval, is_backtest
+                    ): ticker for ticker in stock_list
+                }
 
-                    # Extract wave information
-                    wave_info = {}
-                    if current_analysis_summary and not current_analysis_summary.get('error'):
-                        wave_info['current_wave'] = current_analysis_summary.get('last_label', 'Unknown')
-                        wave_info['impulse_identified'] = current_analysis_summary.get('impulse_identified', False)
-                        if 'details' in current_analysis_summary and 'sequence_score' in current_analysis_summary['details']:
-                            wave_info['score'] = current_analysis_summary['details']['sequence_score']
-                        else:
-                            wave_info['score'] = 0
+                # Process results as they complete
+                for future in as_completed(future_to_ticker):
+                    ticker = future_to_ticker[future]
+                    completed_count += 1
 
-                    # Build result
-                    result = {
-                        'ticker': current_ticker,
-                        'trade_recommendation_data': clean_data_for_json(current_trade_recommendation) if current_trade_recommendation else None,
-                        'wave_info': wave_info,
-                        'backtest_stats': clean_data_for_json(current_backtest_stats) if current_backtest_stats else None,
-                        'error': current_analysis_summary.get('error') if current_analysis_summary else None
-                    }
+                    try:
+                        result, backtest_stats, trade_rec = future.result()
 
-                    # Send progress update
-                    progress_data = {
-                        'type': 'progress',
-                        'index': idx + 1,
-                        'total': total_stocks,
-                        'result': result
-                    }
-                    yield f"data: {json.dumps(progress_data, default=str)}\n\n"
+                        # Update backtest summary
+                        if is_backtest and backtest_stats and trade_rec and trade_rec.get('status') == 'Trade Found':
+                            backtest_summary['total_trades'] += 1
+                            if backtest_stats.get('hit_tp1'): backtest_summary['hit_tp1'] += 1
+                            if backtest_stats.get('hit_tp2'): backtest_summary['hit_tp2'] += 1
+                            if backtest_stats.get('hit_sl'):
+                                backtest_summary['hit_sl'] += 1
+                                backtest_summary['losing_trades'] += 1
+                            elif backtest_stats.get('hit_tp1') or backtest_stats.get('hit_tp2'):
+                                backtest_summary['winning_trades'] += 1
+                            if backtest_stats.get('status') == 'still_running':
+                                backtest_summary['still_running'] += 1
+                            pct_change = backtest_stats.get('current_pct_change', 0)
+                            if pct_change > 0:
+                                backtest_summary['total_win_pct'] += pct_change
+                            else:
+                                backtest_summary['total_loss_pct'] += pct_change
 
-                except Exception as stock_err:
-                    error_result = {
-                        'type': 'progress',
-                        'index': idx + 1,
-                        'total': total_stocks,
-                        'result': {
-                            'ticker': current_ticker,
-                            'error': str(stock_err),
-                            'trade_recommendation_data': None,
-                            'wave_info': {},
-                            'backtest_stats': None
+                        # Send progress update
+                        progress_data = {
+                            'type': 'progress',
+                            'index': completed_count,
+                            'total': total_stocks,
+                            'result': result
                         }
-                    }
-                    yield f"data: {json.dumps(error_result, default=str)}\n\n"
+                        yield f"data: {json.dumps(progress_data, default=str)}\n\n"
+
+                    except Exception as stock_err:
+                        error_result = {
+                            'type': 'progress',
+                            'index': completed_count,
+                            'total': total_stocks,
+                            'result': {
+                                'ticker': ticker,
+                                'error': str(stock_err),
+                                'trade_recommendation_data': None,
+                                'wave_info': {},
+                                'backtest_stats': None
+                            }
+                        }
+                        yield f"data: {json.dumps(error_result, default=str)}\n\n"
 
             # Calculate final backtest statistics
             if is_backtest and backtest_summary['total_trades'] > 0:
@@ -3947,7 +4054,8 @@ def analyze_stream():
             complete_data = {
                 'type': 'complete',
                 'total': total_stocks,
-                'backtest_summary': backtest_summary if is_backtest else None
+                'backtest_summary': backtest_summary if is_backtest else None,
+                'cache_stats': stock_cache.get_stats()
             }
             yield f"data: {json.dumps(complete_data, default=str)}\n\n"
 
