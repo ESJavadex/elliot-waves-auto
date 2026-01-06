@@ -80,6 +80,9 @@ class StockDataCache:
 # Global cache instance
 stock_cache = StockDataCache(ttl_seconds=300)  # 5 minute cache
 
+# Lock for serializing analysis calls (global_trade_recommendation causes race conditions)
+analysis_lock = Lock()
+
 app = Flask(__name__)
 
 # Test endpoint to verify routing
@@ -3887,28 +3890,35 @@ def index():
                            strategy_type=strategy_type)  # Pass strategy type to template
 
 def analyze_single_stock(ticker, start_date, end_date, analysis_date, check_date, interval, is_backtest):
-    """Helper function to analyze a single stock - used for parallel processing"""
+    """Helper function to analyze a single stock - used for parallel processing.
+
+    Note: Uses analysis_lock to prevent race conditions with global_trade_recommendation.
+    Data fetching still benefits from caching, but analysis is serialized.
+    """
     try:
         current_analysis_summary = None
         current_backtest_stats = None
         current_trade_recommendation = None
 
-        if is_backtest:
-            _, current_analysis_summary = run_backtest_simulation(
-                ticker, start_date, analysis_date, check_date, interval
-            )
-            if current_analysis_summary:
-                if 'trade_recommendation' in current_analysis_summary:
-                    current_trade_recommendation = current_analysis_summary['trade_recommendation']
-                if 'backtest_stats' in current_analysis_summary:
-                    current_backtest_stats = current_analysis_summary['backtest_stats']
-        else:
-            try:
-                _, current_analysis_summary, current_trade_recommendation = run_analysis(
-                    ticker, start_date, end_date, False, interval
+        # Use lock to prevent race conditions with global_trade_recommendation
+        # Data is still cached, so repeated fetches are fast
+        with analysis_lock:
+            if is_backtest:
+                _, current_analysis_summary = run_backtest_simulation(
+                    ticker, start_date, analysis_date, check_date, interval
                 )
-            except Exception as e:
-                current_analysis_summary = {'error': str(e)}
+                if current_analysis_summary:
+                    if 'trade_recommendation' in current_analysis_summary:
+                        current_trade_recommendation = current_analysis_summary['trade_recommendation']
+                    if 'backtest_stats' in current_analysis_summary:
+                        current_backtest_stats = current_analysis_summary['backtest_stats']
+            else:
+                try:
+                    _, current_analysis_summary, current_trade_recommendation = run_analysis(
+                        ticker, start_date, end_date, False, interval
+                    )
+                except Exception as e:
+                    current_analysis_summary = {'error': str(e)}
 
         # Extract wave information
         wave_info = {}
