@@ -3920,22 +3920,34 @@ def analyze_single_stock(ticker, start_date, end_date, analysis_date, check_date
                     # Convert trade_signals.py format to expected format
                     # trade_signals returns: {signals: {...}, recommendation: 'LONG - HIGH confidence'/'No trade'}
                     # Expected format: {status: 'Trade Found', signal: 'Long', entry_price, stop_loss_price, ...}
+                    # IMPORTANT: Only mark as "Trade Found" if we have actual entry/stop prices
                     rec = raw_trade_rec.get('recommendation', '') if raw_trade_rec else ''
                     if rec.startswith('LONG') or rec.startswith('SHORT'):
                         signals = raw_trade_rec.get('signals', {})
+                        entry = signals.get('entry')
+                        stop = signals.get('stop_loss')
                         targets = signals.get('targets', [])
                         signal_type = 'Long' if rec.startswith('LONG') else 'Short'
-                        current_trade_recommendation = {
-                            'status': 'Trade Found',
-                            'signal': signal_type,
-                            'entry_price': signals.get('entry'),
-                            'stop_loss_price': signals.get('stop_loss'),
-                            'tp1_price': targets[0] if len(targets) > 0 else None,
-                            'tp2_price': targets[1] if len(targets) > 1 else None,
-                            'tp1_rrr': signals.get('risk_reward', 0),
-                            'confidence': signals.get('confidence', 'low'),
-                            'notes': f"Pattern: {signals.get('pattern_type', 'unknown')}"
-                        }
+
+                        # Only "Trade Found" if we have actual calculated prices
+                        if entry is not None and stop is not None:
+                            current_trade_recommendation = {
+                                'status': 'Trade Found',
+                                'signal': signal_type,
+                                'entry_price': entry,
+                                'stop_loss_price': stop,
+                                'tp1_price': targets[0] if len(targets) > 0 else None,
+                                'tp2_price': targets[1] if len(targets) > 1 else None,
+                                'tp1_rrr': signals.get('risk_reward', 0),
+                                'confidence': signals.get('confidence', 'low'),
+                                'notes': f"Pattern: {signals.get('pattern_type', 'unknown')}"
+                            }
+                        else:
+                            # Has direction bias but no calculated prices - not a real trade
+                            current_trade_recommendation = {
+                                'status': 'No Trade',
+                                'reason': f"Bias: {signal_type} (no entry calculated)"
+                            }
                     elif raw_trade_rec:
                         current_trade_recommendation = {
                             'status': 'No Trade',
