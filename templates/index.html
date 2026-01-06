@@ -299,6 +299,22 @@
         .show-plot-btn:hover { background-color: var(--accent-primary); transform: translateY(-1px); box-shadow: var(--shadow-md); }
         .show-plot-btn:active { transform: translateY(0); box-shadow: var(--shadow-sm); background-color: var(--accent-tertiary); }
         .filter-controls { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; padding: 18px 25px; background-color: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-color); }
+        /* Streaming Analysis Styles */
+        .streaming-btn { background: linear-gradient(135deg, #00b894, #00cec9); color: white; border: none; padding: 12px 24px; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; font-size: 1em; transition: all 0.3s ease; margin-left: 10px; }
+        .streaming-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0, 184, 148, 0.4); }
+        .streaming-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .view-chart-btn { background: linear-gradient(135deg, #6c5ce7, #a29bfe); color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85em; font-weight: 500; transition: all 0.2s ease; }
+        .view-chart-btn:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(108, 92, 231, 0.4); }
+        .streaming-progress { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 20px; margin: 20px 0; border: 1px solid var(--border-color); }
+        .streaming-progress-bar { height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden; margin: 10px 0; }
+        .streaming-progress-fill { height: 100%; background: linear-gradient(90deg, #00b894, #00cec9); transition: width 0.3s ease; width: 0%; }
+        .streaming-status { display: flex; justify-content: space-between; align-items: center; color: var(--text-secondary); font-size: 0.95em; }
+        .streaming-counter { font-weight: 600; color: var(--accent-primary); }
+        #streaming-results-container { display: none; }
+        #streaming-results-container.active { display: block; }
+        .streaming-table-container { max-height: 600px; overflow-y: auto; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        .stock-results-table tbody tr.new-row { animation: fadeIn 0.3s ease; }
         .stocks-count { color: var(--text-secondary); font-size: 0.9em; background-color: rgba(0, 0, 0, 0.2); padding: 8px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); }
         .table-controls { display: flex; align-items: center; gap: 18px; }
         .toggle-table-btn { display: flex; align-items: center; gap: 10px; padding: 9px 18px; background-color: var(--bg-tertiary); color: var(--accent-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; font-size: 0.9em; transition: var(--transition-fast); font-weight: 500; }
@@ -499,7 +515,7 @@
     <div class="container">
         <h1>Conceptual Elliott Wave Analysis & Trade Ideas</h1>
 
-        <form method="POST">
+        <form method="POST" id="analysisForm">
             <div class="condensed-form-section">
 
                 <div class="main-settings-grid">
@@ -599,7 +615,63 @@
                         </span>
                     </label>
                    <input type="submit" value="Run Analysis / Backtest">
+                   <button type="button" id="streaming-btn" class="streaming-btn" style="display:none;">Stream Results</button>
                </div> </div> </form>
+
+        <!-- Streaming Results Container -->
+        <div id="streaming-results-container">
+            <h2>Multi-Stock Analysis Results (Streaming)</h2>
+            <div class="streaming-progress">
+                <div class="streaming-status">
+                    <span id="streaming-status-text">Preparing analysis...</span>
+                    <span class="streaming-counter"><span id="streaming-current">0</span> / <span id="streaming-total">0</span></span>
+                </div>
+                <div class="streaming-progress-bar">
+                    <div class="streaming-progress-fill" id="streaming-progress-fill"></div>
+                </div>
+            </div>
+            <div class="filter-controls">
+                <div class="table-controls">
+                    <div class="stocks-count">
+                        <span id="streaming-visible-count">0 stocks analyzed</span>
+                    </div>
+                </div>
+                <label class="form-toggle">
+                    <label class="toggle-label" for="streaming-hide-no-entry">Hide Stocks Without Entry</label>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="streaming-hide-no-entry" checked>
+                        <span class="toggle-slider"></span>
+                    </span>
+                </label>
+            </div>
+            <div class="multi-stock-results streaming-table-container">
+                <table class="stock-results-table" id="streaming-results-table">
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Wave</th>
+                            <th>Signal</th>
+                            <th>Entry</th>
+                            <th>SL</th>
+                            <th>TP1</th>
+                            <th>TP2</th>
+                            <th>R:R</th>
+                            <th>% Change</th>
+                            <th id="streaming-backtest-cols" style="display:none;">Status</th>
+                            <th>Score</th>
+                            <th>Status</th>
+                            <th>Chart</th>
+                        </tr>
+                    </thead>
+                    <tbody id="streaming-results-body">
+                    </tbody>
+                </table>
+            </div>
+            <div id="streaming-backtest-summary" style="display:none;" class="backtest-summary-section">
+                <h3>Backtest Summary</h3>
+                <div class="backtest-summary-grid" id="backtest-summary-content"></div>
+            </div>
+        </div>
 
         {% if error %}
             <p class="error">{{ error }}</p>
@@ -1176,9 +1248,296 @@
                     }
                 });
             }
-        });
+        // --- Streaming Analysis ---
+            const streamingBtn = document.getElementById('streaming-btn');
+            const streamingContainer = document.getElementById('streaming-results-container');
+            const streamingResultsBody = document.getElementById('streaming-results-body');
+            const streamingProgressFill = document.getElementById('streaming-progress-fill');
+            const streamingCurrent = document.getElementById('streaming-current');
+            const streamingTotal = document.getElementById('streaming-total');
+            const streamingStatusText = document.getElementById('streaming-status-text');
+            const streamingVisibleCount = document.getElementById('streaming-visible-count');
+            const streamingHideNoEntry = document.getElementById('streaming-hide-no-entry');
+            const backtestSummaryDiv = document.getElementById('streaming-backtest-summary');
 
-        // Second DOMContentLoaded event listener removed - content moved to the first one
+            // Show/hide streaming button based on analysis mode
+            if (analysisModeSelect && streamingBtn) {
+                function updateStreamingBtnVisibility() {
+                    streamingBtn.style.display = analysisModeSelect.value === 'multi' ? 'inline-block' : 'none';
+                }
+                updateStreamingBtnVisibility();
+                analysisModeSelect.addEventListener('change', updateStreamingBtnVisibility);
+            }
+
+            // Streaming button click handler
+            if (streamingBtn) {
+                streamingBtn.addEventListener('click', startStreamingAnalysis);
+            }
+
+            // Hide no entry filter for streaming
+            if (streamingHideNoEntry) {
+                streamingHideNoEntry.addEventListener('change', filterStreamingResults);
+            }
+
+            function filterStreamingResults() {
+                if (!streamingResultsBody) return;
+                const hideNoEntry = streamingHideNoEntry ? streamingHideNoEntry.checked : false;
+                const rows = streamingResultsBody.querySelectorAll('tr');
+                let visibleCount = 0;
+                let withEntryCount = 0;
+                rows.forEach(row => {
+                    const hasEntry = row.dataset.hasEntry === 'true';
+                    if (hasEntry) withEntryCount++;
+                    if (hideNoEntry && !hasEntry) {
+                        row.style.display = 'none';
+                    } else {
+                        row.style.display = '';
+                        visibleCount++;
+                    }
+                });
+                if (streamingVisibleCount) {
+                    streamingVisibleCount.textContent = `${visibleCount} visible (${withEntryCount} with entry)`;
+                }
+            }
+
+            function startStreamingAnalysis() {
+                const stockListInput = document.getElementById('stock_list');
+                const startDateInput = document.getElementById('start_date');
+                const endDateInput = document.getElementById('end_date');
+                const intervalSelect = document.getElementById('interval');
+                const backtestCheckbox = document.getElementById('run_backtest');
+                const analysisDateInput = document.getElementById('analysis_date');
+                const checkDateInput = document.getElementById('check_date');
+
+                if (!stockListInput || !stockListInput.value.trim()) {
+                    alert('Please enter stock symbols');
+                    return;
+                }
+
+                const isBacktest = backtestCheckbox ? backtestCheckbox.checked : false;
+
+                // Prepare request data
+                const requestData = {
+                    stock_list: stockListInput.value.trim(),
+                    start_date: startDateInput ? startDateInput.value : '',
+                    end_date: endDateInput ? endDateInput.value : '',
+                    interval: intervalSelect ? intervalSelect.value : '1d',
+                    run_backtest: isBacktest,
+                    analysis_date: analysisDateInput ? analysisDateInput.value : '',
+                    check_date: checkDateInput ? checkDateInput.value : ''
+                };
+
+                // Reset and show streaming container
+                streamingResultsBody.innerHTML = '';
+                streamingProgressFill.style.width = '0%';
+                streamingCurrent.textContent = '0';
+                streamingTotal.textContent = '0';
+                streamingStatusText.textContent = 'Starting analysis...';
+                streamingContainer.classList.add('active');
+                streamingBtn.disabled = true;
+                backtestSummaryDiv.style.display = 'none';
+
+                // Scroll to results
+                streamingContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                // Start SSE connection
+                fetch('/api/analyze-stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                }).then(response => {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    function processStream() {
+                        reader.read().then(({ done, value }) => {
+                            if (done) {
+                                streamingBtn.disabled = false;
+                                return;
+                            }
+
+                            buffer += decoder.decode(value, { stream: true });
+                            const lines = buffer.split('\n');
+                            buffer = lines.pop(); // Keep incomplete line in buffer
+
+                            lines.forEach(line => {
+                                if (line.startsWith('data: ')) {
+                                    try {
+                                        const data = JSON.parse(line.substring(6));
+                                        handleStreamingData(data, isBacktest);
+                                    } catch (e) {
+                                        console.error('Error parsing SSE data:', e);
+                                    }
+                                }
+                            });
+
+                            processStream();
+                        }).catch(err => {
+                            console.error('Stream error:', err);
+                            streamingStatusText.textContent = 'Error: ' + err.message;
+                            streamingBtn.disabled = false;
+                        });
+                    }
+
+                    processStream();
+                }).catch(err => {
+                    console.error('Fetch error:', err);
+                    streamingStatusText.textContent = 'Error: ' + err.message;
+                    streamingBtn.disabled = false;
+                });
+            }
+
+            function handleStreamingData(data, isBacktest) {
+                if (data.type === 'start') {
+                    streamingTotal.textContent = data.total;
+                    streamingStatusText.textContent = `Analyzing ${data.total} stocks...`;
+                } else if (data.type === 'progress') {
+                    streamingCurrent.textContent = data.index;
+                    const progress = (data.index / data.total) * 100;
+                    streamingProgressFill.style.width = progress + '%';
+                    streamingStatusText.textContent = `Analyzing ${data.result.ticker}... (${data.index}/${data.total})`;
+
+                    // Add row to table
+                    addStreamingRow(data.result, isBacktest);
+                    filterStreamingResults();
+                } else if (data.type === 'complete') {
+                    streamingStatusText.textContent = `Analysis complete! ${data.total} stocks analyzed.`;
+                    streamingBtn.disabled = false;
+
+                    // Show backtest summary if available
+                    if (isBacktest && data.backtest_summary) {
+                        showBacktestSummary(data.backtest_summary);
+                    }
+                } else if (data.type === 'error') {
+                    streamingStatusText.textContent = 'Error: ' + data.message;
+                    streamingBtn.disabled = false;
+                }
+            }
+
+            function addStreamingRow(result, isBacktest) {
+                const tr = document.createElement('tr');
+                tr.classList.add('new-row');
+
+                const hasEntry = result.trade_recommendation_data &&
+                                 result.trade_recommendation_data.status === 'Trade Found';
+                tr.dataset.hasEntry = hasEntry ? 'true' : 'false';
+                tr.className = hasEntry ? 'trade-found new-row' : 'no-trade new-row';
+
+                const trade = result.trade_recommendation_data || {};
+                const wave = result.wave_info || {};
+                const backtest = result.backtest_stats || {};
+
+                const formatPrice = (val) => val != null ? parseFloat(val).toFixed(2) : 'N/A';
+                const formatPct = (val) => val != null ? parseFloat(val).toFixed(2) + '%' : 'N/A';
+
+                // Build chart URL params for View Chart button - include all experiment conditions
+                const chartParamsObj = {
+                    ticker: result.ticker,
+                    start_date: document.getElementById('start_date').value,
+                    interval: document.getElementById('interval').value
+                };
+
+                // Include backtest params if backtest mode was enabled
+                if (isBacktest) {
+                    chartParamsObj.run_backtest = 'true';
+                    chartParamsObj.analysis_date = document.getElementById('analysis_date').value;
+                    chartParamsObj.check_date = document.getElementById('check_date').value;
+                } else {
+                    chartParamsObj.end_date = document.getElementById('end_date').value;
+                }
+
+                // Include show trade on plot setting
+                const showTradeCheckbox = document.getElementById('show_trade_on_plot');
+                if (showTradeCheckbox && showTradeCheckbox.checked) {
+                    chartParamsObj.show_trade_on_plot = 'true';
+                }
+
+                const chartParams = new URLSearchParams(chartParamsObj).toString();
+
+                let html = `
+                    <td><strong>${result.ticker}</strong></td>
+                    <td>${wave.current_wave || 'N/A'}</td>
+                    <td>${hasEntry ? (trade.signal || 'N/A') : 'N/A'}</td>
+                    <td>${hasEntry ? formatPrice(trade.entry_price) : 'N/A'}</td>
+                    <td class="${backtest.hit_sl ? 'sl-reached' : ''}">${hasEntry ? formatPrice(trade.stop_loss_price) : 'N/A'}</td>
+                    <td class="${backtest.hit_tp1 ? 'tp1-reached' : ''}">${hasEntry ? formatPrice(trade.tp1_price) : 'N/A'}</td>
+                    <td class="${backtest.hit_tp2 ? 'tp2-reached' : ''}">${hasEntry ? formatPrice(trade.tp2_price) : 'N/A'}</td>
+                    <td>${hasEntry ? formatPrice(trade.tp1_rrr) : 'N/A'}</td>
+                    <td class="${backtest.current_pct_change > 0 ? 'positive-change' : backtest.current_pct_change < 0 ? 'negative-change' : ''}">${backtest.current_pct_change != null ? formatPct(backtest.current_pct_change) : 'N/A'}</td>
+                `;
+
+                if (isBacktest) {
+                    html += `<td>${backtest.status || 'N/A'}</td>`;
+                    document.getElementById('streaming-backtest-cols').style.display = '';
+                }
+
+                html += `
+                    <td>${wave.score || 0}</td>
+                    <td>${result.error ? '<span class="error-badge">Error</span>' : (hasEntry ? 'Trade Found' : 'No Trade')}</td>
+                    <td><button class="view-chart-btn" onclick="window.open('/?${chartParams}', '_blank')">View</button></td>
+                `;
+
+                tr.innerHTML = html;
+                streamingResultsBody.appendChild(tr);
+
+                // Remove animation class after animation completes
+                setTimeout(() => tr.classList.remove('new-row'), 300);
+            }
+
+            function showBacktestSummary(summary) {
+                backtestSummaryDiv.style.display = 'block';
+                const content = document.getElementById('backtest-summary-content');
+                content.innerHTML = `
+                    <div class="stat-item"><span class="stat-label">Total Trades:</span><span class="stat-value">${summary.total_trades}</span></div>
+                    <div class="stat-item"><span class="stat-label">Win Rate:</span><span class="stat-value">${summary.win_rate}%</span></div>
+                    <div class="stat-item"><span class="stat-label">Hit TP1:</span><span class="stat-value">${summary.hit_tp1}</span></div>
+                    <div class="stat-item"><span class="stat-label">Hit TP2:</span><span class="stat-value">${summary.hit_tp2}</span></div>
+                    <div class="stat-item"><span class="stat-label">Hit SL:</span><span class="stat-value">${summary.hit_sl}</span></div>
+                    <div class="stat-item"><span class="stat-label">Still Running:</span><span class="stat-value">${summary.still_running}</span></div>
+                    <div class="stat-item"><span class="stat-label">Avg Win %:</span><span class="stat-value">${summary.avg_win_pct}%</span></div>
+                    <div class="stat-item"><span class="stat-label">Avg Loss %:</span><span class="stat-value">${summary.avg_loss_pct}%</span></div>
+                `;
+            }
+
+            // Handle URL parameters for View Chart links - auto-fill and submit
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('ticker') && !urlParams.has('autosubmitted')) {
+                const ticker = urlParams.get('ticker');
+                const startDate = urlParams.get('start_date');
+                const endDate = urlParams.get('end_date');
+                const interval = urlParams.get('interval');
+                const runBacktest = urlParams.get('run_backtest');
+                const analysisDate = urlParams.get('analysis_date');
+                const checkDate = urlParams.get('check_date');
+                const showTrade = urlParams.get('show_trade_on_plot');
+
+                // Fill in form values
+                if (singleTickerInput) singleTickerInput.value = ticker;
+                if (startDate) document.getElementById('start_date').value = startDate;
+                if (endDate) document.getElementById('end_date').value = endDate;
+                if (interval) document.getElementById('interval').value = interval;
+
+                // Handle backtest mode
+                if (runBacktest === 'true') {
+                    const backtestCheckbox = document.getElementById('run_backtest');
+                    if (backtestCheckbox) backtestCheckbox.checked = true;
+                    if (analysisDate) document.getElementById('analysis_date').value = analysisDate;
+                    if (checkDate) document.getElementById('check_date').value = checkDate;
+                }
+
+                // Handle show trade on plot
+                if (showTrade === 'true') {
+                    const showTradeCheckbox = document.getElementById('show_trade_on_plot');
+                    if (showTradeCheckbox) showTradeCheckbox.checked = true;
+                }
+
+                // Clear URL params to prevent infinite loop, then submit
+                window.history.replaceState({}, '', window.location.pathname);
+                const form = document.getElementById('analysisForm');
+                if (form) form.submit();
+            }
+        });
     </script>
 
 </body>

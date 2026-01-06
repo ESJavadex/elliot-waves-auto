@@ -15,7 +15,7 @@ from plotly.subplots import make_subplots
 import plotly.offline
 from scipy.signal import find_peaks
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 import glob
 import os
 
@@ -3815,6 +3815,151 @@ def index():
                            default_check_date=default_check_date,
                            stock_lists=stock_lists,  # Pass stock lists to template
                            strategy_type=strategy_type)  # Pass strategy type to template
+
+@app.route('/api/analyze-stream', methods=['POST'])
+def analyze_stream():
+    """SSE endpoint for streaming multi-stock analysis results"""
+    # Extract data BEFORE the generator to avoid request context issues
+    data = request.get_json()
+    stock_list_raw = data.get('stock_list', '')
+    start_date = data.get('start_date', '')
+    end_date = data.get('end_date', '')
+    interval = data.get('interval', '1d')
+    is_backtest = data.get('run_backtest', False)
+    analysis_date = data.get('analysis_date', '')
+    check_date = data.get('check_date', '')
+
+    # Parse stock list
+    stock_list = [ticker.strip().upper() for ticker in stock_list_raw.split(',') if ticker.strip()]
+    total_stocks = len(stock_list)
+
+    def generate():
+        try:
+            if not stock_list:
+                yield f"data: {json.dumps({'type': 'error', 'message': 'No stocks provided'})}\n\n"
+                return
+
+            # Send initial message with total count
+            yield f"data: {json.dumps({'type': 'start', 'total': total_stocks})}\n\n"
+
+            # Backtest summary statistics
+            backtest_summary = {
+                'total_trades': 0, 'hit_tp1': 0, 'hit_tp2': 0, 'hit_sl': 0,
+                'still_running': 0, 'winning_trades': 0, 'losing_trades': 0,
+                'win_rate': 0, 'avg_win_pct': 0, 'avg_loss_pct': 0,
+                'total_win_pct': 0, 'total_loss_pct': 0
+            }
+
+            for idx, current_ticker in enumerate(stock_list):
+                try:
+                    current_analysis_summary = None
+                    current_backtest_stats = None
+                    current_trade_recommendation = None
+
+                    if is_backtest:
+                        _, current_analysis_summary = run_backtest_simulation(
+                            current_ticker, start_date, analysis_date, check_date, interval
+                        )
+                        if current_analysis_summary:
+                            if 'trade_recommendation' in current_analysis_summary:
+                                current_trade_recommendation = current_analysis_summary['trade_recommendation']
+                            if 'backtest_stats' in current_analysis_summary:
+                                current_backtest_stats = current_analysis_summary['backtest_stats']
+                                # Update backtest summary
+                                if current_backtest_stats and current_trade_recommendation and current_trade_recommendation.get('status') == 'Trade Found':
+                                    backtest_summary['total_trades'] += 1
+                                    if current_backtest_stats.get('hit_tp1'): backtest_summary['hit_tp1'] += 1
+                                    if current_backtest_stats.get('hit_tp2'): backtest_summary['hit_tp2'] += 1
+                                    if current_backtest_stats.get('hit_sl'):
+                                        backtest_summary['hit_sl'] += 1
+                                        backtest_summary['losing_trades'] += 1
+                                    elif current_backtest_stats.get('hit_tp1') or current_backtest_stats.get('hit_tp2'):
+                                        backtest_summary['winning_trades'] += 1
+                                    if current_backtest_stats.get('status') == 'still_running':
+                                        backtest_summary['still_running'] += 1
+                                    pct_change = current_backtest_stats.get('current_pct_change', 0)
+                                    if pct_change > 0:
+                                        backtest_summary['total_win_pct'] += pct_change
+                                    else:
+                                        backtest_summary['total_loss_pct'] += pct_change
+                    else:
+                        try:
+                            _, current_analysis_summary, current_trade_recommendation = run_analysis(
+                                current_ticker, start_date, end_date, False, interval
+                            )
+                        except Exception as e:
+                            current_analysis_summary = {'error': str(e)}
+
+                    # Extract wave information
+                    wave_info = {}
+                    if current_analysis_summary and not current_analysis_summary.get('error'):
+                        wave_info['current_wave'] = current_analysis_summary.get('last_label', 'Unknown')
+                        wave_info['impulse_identified'] = current_analysis_summary.get('impulse_identified', False)
+                        if 'details' in current_analysis_summary and 'sequence_score' in current_analysis_summary['details']:
+                            wave_info['score'] = current_analysis_summary['details']['sequence_score']
+                        else:
+                            wave_info['score'] = 0
+
+                    # Build result
+                    result = {
+                        'ticker': current_ticker,
+                        'trade_recommendation_data': clean_data_for_json(current_trade_recommendation) if current_trade_recommendation else None,
+                        'wave_info': wave_info,
+                        'backtest_stats': clean_data_for_json(current_backtest_stats) if current_backtest_stats else None,
+                        'error': current_analysis_summary.get('error') if current_analysis_summary else None
+                    }
+
+                    # Send progress update
+                    progress_data = {
+                        'type': 'progress',
+                        'index': idx + 1,
+                        'total': total_stocks,
+                        'result': result
+                    }
+                    yield f"data: {json.dumps(progress_data, default=str)}\n\n"
+
+                except Exception as stock_err:
+                    error_result = {
+                        'type': 'progress',
+                        'index': idx + 1,
+                        'total': total_stocks,
+                        'result': {
+                            'ticker': current_ticker,
+                            'error': str(stock_err),
+                            'trade_recommendation_data': None,
+                            'wave_info': {},
+                            'backtest_stats': None
+                        }
+                    }
+                    yield f"data: {json.dumps(error_result, default=str)}\n\n"
+
+            # Calculate final backtest statistics
+            if is_backtest and backtest_summary['total_trades'] > 0:
+                total_decided = backtest_summary['winning_trades'] + backtest_summary['losing_trades']
+                if total_decided > 0:
+                    backtest_summary['win_rate'] = round((backtest_summary['winning_trades'] / total_decided) * 100, 2)
+                if backtest_summary['winning_trades'] > 0:
+                    backtest_summary['avg_win_pct'] = round(backtest_summary['total_win_pct'] / backtest_summary['winning_trades'], 2)
+                if backtest_summary['losing_trades'] > 0:
+                    backtest_summary['avg_loss_pct'] = round(backtest_summary['total_loss_pct'] / backtest_summary['losing_trades'], 2)
+
+            # Send completion message
+            complete_data = {
+                'type': 'complete',
+                'total': total_stocks,
+                'backtest_summary': backtest_summary if is_backtest else None
+            }
+            yield f"data: {json.dumps(complete_data, default=str)}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return Response(generate(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+    })
+
 
 if __name__ == '__main__':
     print("\n--- Starting Flask Server ---")

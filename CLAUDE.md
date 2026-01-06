@@ -10,7 +10,10 @@ This is an Elliott Wave financial analysis application that detects wave pattern
 
 ### Running the Application
 ```bash
-# Run the main Flask application locally
+# Run the main Flask application using the startup script
+./start_app.sh
+
+# Or run directly with Python
 python app_v5_automated.py
 
 # Application runs on http://0.0.0.0:5001 by default
